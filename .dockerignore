@@ -1,0 +1,21 @@
+# Ignore SQLite database files
+*.db
+
+# Binaries
+*.exe
+*.out
+*.test
+
+# Build and vendor
+/vendor/
+/build/
+/dist/
+bin/
+
+# Logs
+*.log
+
+# OS and editor junk
+.DS_Store
+.idea/
+.vscode/

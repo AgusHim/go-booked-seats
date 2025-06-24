@@ -1,0 +1,40 @@
+# Golang binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Build folders
+/bin/
+/build/
+/dist/
+
+# Go workspace file
+go.work
+
+# Go modules vendor folder (if using `go mod vendor`)
+/vendor/
+
+# Logs
+*.log
+
+# SQLite DB (jika kamu pakai fallback SQLite)
+*.db
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# Dependency caches
+**/.cache/
+*.swp
+
+data.db
+.env
