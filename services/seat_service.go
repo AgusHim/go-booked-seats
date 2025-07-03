@@ -7,7 +7,7 @@ import (
 )
 
 type SeatService interface {
-	GetAll() ([]models.Seat, error)
+	GetAll(showID string) ([]models.Seat, error)
 	GetByID(id string) (models.Seat, error)
 	Create(seat models.Seat) error
 	Update(seat models.Seat) error
@@ -24,8 +24,8 @@ func NewSeatService(repo repositories.SeatRepository) SeatService {
 	return &seatService{repo}
 }
 
-func (s *seatService) GetAll() ([]models.Seat, error) {
-	return s.repo.FindAll()
+func (s *seatService) GetAll(showID string) ([]models.Seat, error) {
+	return s.repo.FindAll(showID)
 }
 
 func (s *seatService) GetByID(id string) (models.Seat, error) {

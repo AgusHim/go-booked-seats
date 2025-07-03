@@ -13,7 +13,7 @@ import (
 )
 
 type SeatRepository interface {
-	FindAll() ([]models.Seat, error)
+	FindAll(showID string) ([]models.Seat, error)
 	FindByID(id string) (models.Seat, error)
 	Create(seat models.Seat) error
 	Update(seat models.Seat) error
@@ -31,30 +31,30 @@ func NewSeatRepository(db *gorm.DB, rdb *redis.Client) SeatRepository {
 	return &seatRepository{db: db, rdb: rdb}
 }
 
-func (r *seatRepository) FindAll() ([]models.Seat, error) {
+func (r *seatRepository) FindAll(showID string) ([]models.Seat, error) {
 	var seats []models.Seat
 	ctx := context.Background()
-	cacheKey := "seats:all"
+	cacheKey := fmt.Sprintf("seats:all:%s", showID)
 
-	// Check Redis
-	cached, err := r.rdb.Get(ctx, cacheKey).Result()
-	if err == nil {
-		// Found in Redis
+	// Attempt to fetch from Redis
+	if cached, err := r.rdb.Get(ctx, cacheKey).Result(); err == nil {
 		if err := json.Unmarshal([]byte(cached), &seats); err == nil {
 			return seats, nil
 		}
 	}
 
-	// Not in Redis or failed unmarshal, fetch from DB
-	err = r.db.Find(&seats).Error
-	if err != nil {
+	// Fallback to DB
+	query := r.db
+	if showID != "" {
+		query = query.Where("show_id = ?", showID)
+	}
+	if err := query.Find(&seats).Error; err != nil {
 		return nil, err
 	}
 
-	// Store to Redis
-	data, err := json.Marshal(seats)
-	if err == nil {
-		_ = r.rdb.Set(ctx, cacheKey, data, time.Hour*2).Err() // Cache 5 menit
+	// Cache to Redis
+	if data, err := json.Marshal(seats); err == nil {
+		_ = r.rdb.Set(ctx, cacheKey, data, 5*time.Minute).Err()
 	}
 
 	return seats, nil

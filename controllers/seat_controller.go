@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go-ticketing/models"
 	"go-ticketing/services"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,7 +21,8 @@ func NewSeatController(s services.SeatService, ws WebsocketController) *SeatCont
 }
 
 func (c *SeatController) GetAll(ctx *fiber.Ctx) error {
-	seats, err := c.seatService.GetAll()
+	showID := ctx.Query("show_id")
+	seats, err := c.seatService.GetAll(showID)
 	if err != nil {
 		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
@@ -142,4 +144,12 @@ func (ctl *SeatController) GetLockedSeats(c *fiber.Ctx) error {
 		"data":    locked,
 		"message": "Locked seats fetched",
 	})
+}
+
+func StringToUint(s string) (uint, error) {
+	u64, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return uint(u64), nil
 }
