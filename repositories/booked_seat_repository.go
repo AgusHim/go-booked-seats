@@ -1,18 +1,22 @@
 package repositories
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"go-ticketing/models"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 type BookedSeatRepository struct {
-	DB *gorm.DB
+	DB  *gorm.DB
+	rdb *redis.Client
 }
 
-func NewBookedSeatRepository(db *gorm.DB) *BookedSeatRepository {
-	return &BookedSeatRepository{DB: db}
+func NewBookedSeatRepository(db *gorm.DB, rdb *redis.Client) *BookedSeatRepository {
+	return &BookedSeatRepository{DB: db, rdb: rdb}
 }
 
 func (r *BookedSeatRepository) FindAll(showID string) ([]models.BookedSeat, error) {
@@ -49,6 +53,7 @@ func (r *BookedSeatRepository) UpsertBookedSeats(seats []models.BookedSeat) ([]m
 	var result []models.BookedSeat
 
 	for _, seat := range seats {
+		var key = fmt.Sprintf("%s:%s", seat.ShowID, seat.SeatID)
 		if seat.ID != "" {
 			var existing models.BookedSeat
 			err := r.DB.First(&existing, "id = ?", seat.ID).Error
@@ -77,6 +82,11 @@ func (r *BookedSeatRepository) UpsertBookedSeats(seats []models.BookedSeat) ([]m
 				return nil, err
 			}
 			result = append(result, seat)
+		}
+		ctx := context.Background()
+		// 🔓 Unlock seat in Redis after upsert success
+		if err := r.rdb.Del(ctx, key).Err(); err != nil {
+			return nil, fmt.Errorf("failed to unlock seat %s: %w", key, err)
 		}
 	}
 

@@ -20,7 +20,7 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	userService := services.NewUserService(userRepo)
 	userController := controllers.NewUserController(userService)
 
-	bookedSeatRepo := repositories.NewBookedSeatRepository(db)
+	bookedSeatRepo := repositories.NewBookedSeatRepository(db,rdb)
 	bookedSeatService := services.NewBookedSeatService(bookedSeatRepo)
 	bookedSeat := controllers.NewBookedSeatController(bookedSeatService, ws)
 
