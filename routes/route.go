@@ -20,7 +20,7 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	userService := services.NewUserService(userRepo)
 	userController := controllers.NewUserController(userService)
 
-	bookedSeatRepo := repositories.NewBookedSeatRepository(db,rdb)
+	bookedSeatRepo := repositories.NewBookedSeatRepository(db, rdb)
 	bookedSeatService := services.NewBookedSeatService(bookedSeatRepo)
 	bookedSeat := controllers.NewBookedSeatController(bookedSeatService, ws)
 
@@ -47,14 +47,16 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	// WebSocket Endpoint
 	app.Get("/ws", ws.UpgradeConnection)
 	admin_api := app.Group("/admin_api", middleware.AuthProtected())
-	app.Post("/api/login", userController.Login)
-	app.Post("/api/users", userController.Create)
+	api := app.Group("/api")
+	api.Post("/login", userController.Login)
+	api.Post("/users", userController.Create)
 	admin_api.Get("/users", userController.FindAll)
 	admin_api.Delete("/users/:id", userController.Delete)
 
 	seat := app.Group("/api/seats")
 	seat.Get("/", seatController.GetAll)
 	admin_api.Post("/seats/locked", seatController.LockSeat)
+	api.Get("/seats/locked", seatController.GetLockedSeats)
 	admin_api.Get("/seats/locked", seatController.GetLockedSeats)
 	admin_api.Get("/seats/:id", seatController.GetByID)
 	admin_api.Post("/seats", seatController.Create)

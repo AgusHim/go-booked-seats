@@ -15,35 +15,39 @@ func NewDashboardRepository(db *gorm.DB) *DashboardRepository {
 }
 
 func (r *DashboardRepository) GetDashboardData() (*models.DashboardSummary, error) {
-	var result []models.DashboardData
-	err := r.DB.Table("booked_seats").
-		Select("show_id, COUNT(*) as total_booked_seat").
-		Group("show_id").
-		Scan(&result).Error
+	// Temporary struct to scan raw query
+	type RawSeatData struct {
+		ShowID      string
+		Category    string
+		TotalSeats  int
+		BookedSeats int
+	}
+
+	var rawData []RawSeatData
+
+	// Ganti query ini sesuai struktur tabel kamu
+	err := r.DB.Table("seats").
+		Select("seats.show_id, seats.category, COUNT(seats.id) as total_seats, COUNT(booked_seats.id) as booked_seats").
+		Joins("LEFT JOIN booked_seats ON seats.id = booked_seats.seat_id").
+		Group("seats.show_id, seats.category").
+		Scan(&rawData).Error
 	if err != nil {
 		return nil, err
 	}
 
-	var totalTicket int64
-	if err := r.DB.Model(&models.Ticket{}).Count(&totalTicket).Error; err != nil {
-		return nil, err
+	// Transform to nested map
+	bookedSeats := make(map[string]map[string]models.SeatCategorySummary)
+	for _, row := range rawData {
+		if _, ok := bookedSeats[row.ShowID]; !ok {
+			bookedSeats[row.ShowID] = make(map[string]models.SeatCategorySummary)
+		}
+		bookedSeats[row.ShowID][row.Category] = models.SeatCategorySummary{
+			TotalSeats:  row.TotalSeats,
+			BookedSeats: row.BookedSeats,
+		}
 	}
 
-	var totalTicketBooked int64
-	err = r.DB.
-		Table("booked_seats").
-		Select("COUNT(DISTINCT ticket_id)").
-		Scan(&totalTicketBooked).Error
-	if err != nil {
-		return nil, err
-	}
-
-	summary := &models.DashboardSummary{
-		BookedSeatPerShow:   result,
-		TotalTicket:         totalTicket,
-		TotalTicketBooked:   totalTicketBooked,
-		TotalTicketUnbooked: totalTicket - totalTicketBooked,
-	}
-
-	return summary, nil
+	return &models.DashboardSummary{
+		BookedSeats: bookedSeats,
+	}, nil
 }

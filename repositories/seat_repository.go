@@ -54,7 +54,7 @@ func (r *seatRepository) FindAll(showID string) ([]models.Seat, error) {
 
 	// Cache to Redis
 	if data, err := json.Marshal(seats); err == nil {
-		_ = r.rdb.Set(ctx, cacheKey, data, 5*time.Minute).Err()
+		_ = r.rdb.Set(ctx, cacheKey, data, 24*time.Hour).Err()
 	}
 
 	return seats, nil
