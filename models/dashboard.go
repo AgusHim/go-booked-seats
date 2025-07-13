@@ -7,4 +7,5 @@ type DashboardSummary struct {
 type SeatCategorySummary struct {
 	TotalSeats  int `json:"total_seats"`
 	BookedSeats int `json:"booked_seats"`
+	Color       string `json:"color"`
 }

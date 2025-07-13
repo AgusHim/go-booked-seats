@@ -27,8 +27,9 @@ func (r *DashboardRepository) GetDashboardData() (*models.DashboardSummary, erro
 
 	// Ganti query ini sesuai struktur tabel kamu
 	err := r.DB.Table("seats").
-		Select("seats.show_id, seats.category, COUNT(seats.id) as total_seats, COUNT(booked_seats.id) as booked_seats").
+		Select("seats.show_id, seats.category, seats.color, COUNT(seats.id) as total_seats, COUNT(booked_seats.id) as booked_seats").
 		Joins("LEFT JOIN booked_seats ON seats.id = booked_seats.seat_id").
+		Where("seats.category != ?", "STAGE").
 		Group("seats.show_id, seats.category").
 		Scan(&rawData).Error
 	if err != nil {

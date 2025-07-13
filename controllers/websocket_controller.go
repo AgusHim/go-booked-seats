@@ -57,7 +57,6 @@ func (c *WebsocketController) UpgradeConnection(ctx *fiber.Ctx) error {
 		// Baca pesan dummy untuk menjaga koneksi tetap hidup
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
-				fmt.Println("❌ ReadMessage error:", err)
 				break
 			}
 		}
