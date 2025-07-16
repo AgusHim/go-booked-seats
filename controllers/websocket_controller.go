@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"go-ticketing/models"
 	ws "go-ticketing/websocket"
 	"time"

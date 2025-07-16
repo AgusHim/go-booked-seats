@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"go-ticketing/models"
 	"go-ticketing/repositories"
 )
@@ -29,7 +30,18 @@ func (s *BookedSeatService) Update(bookedSeat *models.BookedSeat) error {
 	return s.Repo.Update(bookedSeat)
 }
 
-func (s *BookedSeatService) Delete(id string) error {
+func (s *BookedSeatService) Delete(id string, sessionAdminID string) error {
+	// Ambil data booked seat dulu
+	bookedSeat, err := s.Repo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	// Cek apakah admin_id sesuai dengan session
+	if bookedSeat.AdminID != sessionAdminID {
+		return errors.New("not authorize to delete")
+	}
+
 	return s.Repo.Delete(id)
 }
 

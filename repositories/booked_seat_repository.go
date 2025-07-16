@@ -27,7 +27,7 @@ func (r *BookedSeatRepository) FindAll(showID string) ([]models.BookedSeat, erro
 		query = query.Where("show_id = ?", showID)
 	}
 
-	err := query.Find(&bookedSeats).Error
+	err := query.Preload("Ticket").Preload("Seat").Find(&bookedSeats).Error
 	return bookedSeats, err
 }
 
@@ -51,40 +51,49 @@ func (r *BookedSeatRepository) Delete(id string) error {
 
 func (r *BookedSeatRepository) UpsertBookedSeats(seats []models.BookedSeat) ([]models.BookedSeat, error) {
 	var result []models.BookedSeat
+	ctx := context.Background()
 
 	for _, seat := range seats {
 		var key = fmt.Sprintf("%s:%s", seat.ShowID, seat.SeatID)
+
 		if seat.ID != "" {
 			var existing models.BookedSeat
 			err := r.DB.First(&existing, "id = ?", seat.ID).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
+					// Create baru
 					if err := r.DB.Create(&seat).Error; err != nil {
 						return nil, err
 					}
-					result = append(result, seat)
 				} else {
 					return nil, err
 				}
 			} else {
+				// Update existing
 				if err := r.DB.Model(&existing).Updates(seat).Error; err != nil {
 					return nil, err
 				}
-				// reload updated record
-				var updated models.BookedSeat
-				if err := r.DB.First(&updated, "id = ?", seat.ID).Error; err != nil {
-					return nil, err
-				}
-				result = append(result, updated)
 			}
 		} else {
+			// Create baru
 			if err := r.DB.Create(&seat).Error; err != nil {
 				return nil, err
 			}
-			result = append(result, seat)
 		}
-		ctx := context.Background()
-		// 🔓 Unlock seat in Redis after upsert success
+
+		// Ambil kembali dengan preload relasi Ticket dan Seat
+		var full models.BookedSeat
+		if err := r.DB.
+			Preload("Ticket").
+			Preload("Seat").
+			First(&full, "id = ?", seat.ID).
+			Error; err != nil {
+			return nil, err
+		}
+
+		result = append(result, full)
+
+		// 🔓 Unlock seat in Redis
 		if err := r.rdb.Del(ctx, key).Err(); err != nil {
 			return nil, fmt.Errorf("failed to unlock seat %s: %w", key, err)
 		}

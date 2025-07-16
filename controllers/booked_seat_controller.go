@@ -63,7 +63,8 @@ func (c *BookedSeatController) Update(ctx *fiber.Ctx) error {
 
 func (c *BookedSeatController) Delete(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
-	if err := c.Service.Delete(id); err != nil {
+	adminID := ctx.Locals("user_id").(string)
+	if err := c.Service.Delete(id, adminID); err != nil {
 		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
 	return ctx.JSON(fiber.Map{"success": true, "message": "Deleted"})

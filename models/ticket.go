@@ -8,4 +8,6 @@ type Ticket struct {
 	Gender     string `json:"gender"`
 	TicketName string `json:"ticket_name"`
 	ShowID     string `json:"show_id"`
+
+	BookedSeat *BookedSeat `json:"booked_seat,omitempty" gorm:"foreignKey:TicketID;references:ID"`
 }

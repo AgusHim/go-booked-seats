@@ -10,7 +10,7 @@ import (
 
 type TicketRepository interface {
 	Create(ticket *models.Ticket) error
-	FindAll(search string, page int, limit int) ([]models.Ticket, int64, error)
+	FindAll(search string, page int, limit int, show_id string) ([]models.Ticket, int64, error)
 	FindByID(id string) (*models.Ticket, error)
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
@@ -28,7 +28,7 @@ func (r *ticketRepository) Create(ticket *models.Ticket) error {
 	return r.db.Create(ticket).Error
 }
 
-func (r *ticketRepository) FindAll(search string, page int, limit int) ([]models.Ticket, int64, error) {
+func (r *ticketRepository) FindAll(search string, page int, limit int, showID string) ([]models.Ticket, int64, error) {
 	var tickets []models.Ticket
 	var total int64
 
@@ -40,14 +40,17 @@ func (r *ticketRepository) FindAll(search string, page int, limit int) ([]models
 	}
 	offset := (page - 1) * limit
 
-	query := r.db.Model(&models.Ticket{})
+	query := r.db.Model(&models.Ticket{}).Preload("BookedSeat").Preload("BookedSeat.Seat")
+
+	if showID != "" {
+		query = query.Where("show_id = ?", showID)
+	}
 
 	if search != "" {
 		lowerKeyword := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
-			r.db.Where("LOWER(id) LIKE ?", lowerKeyword).
-				Or("LOWER(name) LIKE ?", lowerKeyword).
-				Or("LOWER(email) LIKE ?", lowerKeyword),
+			"LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?",
+			lowerKeyword, lowerKeyword, lowerKeyword,
 		)
 	}
 

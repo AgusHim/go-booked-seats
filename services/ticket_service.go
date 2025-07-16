@@ -8,7 +8,7 @@ import (
 
 type TicketService interface {
 	Create(ticket *models.Ticket) error
-	GetAll(search string, page int, limit int) ([]models.Ticket, int64, error)
+	GetAll(search string, page int, limit int, showID string) ([]models.Ticket, int64, error)
 	GetByID(id string) (*models.Ticket, error)
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
@@ -26,8 +26,8 @@ func (s *ticketService) Create(ticket *models.Ticket) error {
 	return s.repo.Create(ticket)
 }
 
-func (s *ticketService) GetAll(search string, page int, limit int) ([]models.Ticket, int64, error) {
-	return s.repo.FindAll(search, page, limit)
+func (s *ticketService) GetAll(search string, page int, limit int, showID string) ([]models.Ticket, int64, error) {
+	return s.repo.FindAll(search, page, limit, showID)
 }
 
 func (s *ticketService) GetByID(id string) (*models.Ticket, error) {
