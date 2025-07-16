@@ -78,6 +78,7 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	tickets.Get("/:id", ticketController.GetByID)
 	tickets.Put("/:id", ticketController.Update)
 	tickets.Delete("/:id", ticketController.Delete)
+	tickets.Post("/import", ticketController.ImportCSV)
 
 	admin_api.Get("/dashboard", dashboardController.GetDashboardData)
 }

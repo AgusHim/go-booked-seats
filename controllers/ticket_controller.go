@@ -82,3 +82,35 @@ func (c *TicketController) Delete(ctx *fiber.Ctx) error {
 
 	return ctx.JSON(fiber.Map{"success": true, "message": "Ticket deleted"})
 }
+
+func (c *TicketController) ImportCSV(ctx *fiber.Ctx) error {
+	fileHeader, err := ctx.FormFile("file")
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "File is required",
+		})
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to open file",
+		})
+	}
+	defer file.Close()
+
+	err = c.service.ImportFromCSV(file)
+	if err != nil {
+		return ctx.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to import CSV: " + err.Error(),
+		})
+	}
+
+	return ctx.JSON(fiber.Map{
+		"success": true,
+		"message": "Successfully imported tickets from CSV",
+	})
+}

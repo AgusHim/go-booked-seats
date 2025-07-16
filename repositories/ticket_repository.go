@@ -49,7 +49,7 @@ func (r *ticketRepository) FindAll(search string, page int, limit int, showID st
 	if search != "" {
 		lowerKeyword := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
-			"LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?",
+			"LOWER(ticket_id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?",
 			lowerKeyword, lowerKeyword, lowerKeyword,
 		)
 	}
