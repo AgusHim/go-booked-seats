@@ -30,7 +30,7 @@ func (r *DashboardRepository) GetDashboardData() (*models.DashboardSummary, erro
 		Select("seats.show_id, seats.category, seats.color, COUNT(seats.id) as total_seats, COUNT(booked_seats.id) as booked_seats").
 		Joins("LEFT JOIN booked_seats ON seats.id = booked_seats.seat_id").
 		Where("seats.category != ?", "STAGE").
-		Group("seats.show_id, seats.category").
+		Group("seats.show_id, seats.category, seats.color").
 		Scan(&rawData).Error
 	if err != nil {
 		return nil, err
