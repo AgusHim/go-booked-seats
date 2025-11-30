@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"go-ticketing/models"
 	"go-ticketing/services"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -64,27 +65,27 @@ func (c *BookedSeatController) Update(ctx *fiber.Ctx) error {
 func (c *BookedSeatController) Delete(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
 	adminID := ctx.Locals("user_id").(string)
-	
+
 	// Get the booked seat before deletion to use in the websocket message
 	bookedSeat, err := c.Service.GetByID(id)
 	if err != nil {
 		return ctx.Status(404).JSON(fiber.Map{"success": false, "message": "Booked seat not found"})
 	}
-	
+
 	if err := c.Service.Delete(id, adminID); err != nil {
 		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
-	
+
 	// Send websocket message about the deleted seat
 	go func() {
 		// Create a copy of the deleted seat with a deletion flag
 		deleteInfo := map[string]interface{}{
-			"id": id,
+			"id":      id,
 			"deleted": true,
 			"seat_id": bookedSeat.SeatID,
 			"show_id": bookedSeat.ShowID,
 		}
-		
+
 		payload, err := json.Marshal(deleteInfo)
 		if err != nil {
 			// Optional: log error encoding
@@ -99,7 +100,7 @@ func (c *BookedSeatController) Delete(ctx *fiber.Ctx) error {
 
 		c.WS.SendWebsocketMessage(msg)
 	}()
-	
+
 	return ctx.JSON(fiber.Map{"success": true, "message": "Deleted"})
 }
 
@@ -111,6 +112,15 @@ func (c *BookedSeatController) UpsertBookedSeats(ctx *fiber.Ctx) error {
 			"message": "Invalid request",
 			"error":   err.Error(),
 		})
+	}
+
+	for i, seat := range seats {
+		if seat.TicketID == "" {
+			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "masih ada tiket yang belum diisi index" + strconv.Itoa(i),
+			})
+		}
 	}
 
 	updatedSeats, err := c.Service.UpsertBookedSeats(seats)

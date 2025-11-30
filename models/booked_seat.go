@@ -9,7 +9,7 @@ type BookedSeat struct {
 	ShowID    string    `json:"show_id"`
 	AdminID   string    `json:"admin_id"`
 	Name      string    `json:"name"`
-	TicketID  string    `json:"ticket_id"`
+	TicketID  string    `json:"ticket_id" validate:"required"`
 	Ticket    *Ticket   `json:"ticket,omitempty" gorm:"foreignKey:TicketID;references:ID"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
