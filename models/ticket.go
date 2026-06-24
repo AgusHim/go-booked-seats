@@ -7,7 +7,7 @@ import (
 
 type Ticket struct {
 	ID               string `json:"id" gorm:"primaryKey;type:uuid"`
-	TicketID         string `json:"ticket_id"`
+	ExtTicketID      string `json:"ticket_id"`
 	TicketCode       string  `json:"ticket_code" gorm:"uniqueIndex:idx_ticket_order"`
 	OrderID          string  `json:"order_id" gorm:"uniqueIndex:idx_ticket_order"`
 	Name             string  `json:"name"`

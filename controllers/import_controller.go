@@ -110,7 +110,7 @@ func (ic *ImportController) UploadExcel(c *fiber.Ctx) error {
 			BuyerPhone:       getCol("Telepon Pemesan"),
 			VoucherName:      getCol("Nama voucher"),
 			TicketCode:       ticketCode,
-			TicketID:         ticketCode,
+			ExtTicketID:         ticketCode,
 			EventID:          eventID,
 		}
 		newTickets = append(newTickets, ticket)

@@ -69,14 +69,15 @@ func (s *ticketService) ImportFromCSV(file multipart.File) error {
 		}
 
 		ticket := models.Ticket{
-			ID:         uuid.New().String(), // Optional (bisa juga andalkan BeforeCreate)
-			TicketID:   record[0],
-			Name:       record[1],
-			Email:      record[2],
-			Phone:      record[3],
-			Gender:     record[4],
-			TicketName: record[5],
-			EventID:    record[6],
+			ID:          uuid.New().String(), // Optional (bisa juga andalkan BeforeCreate)
+			ExtTicketID: record[0],
+			TicketCode:  record[0],
+			Name:        record[1],
+			Email:       record[2],
+			Phone:       record[3],
+			Gender:      record[4],
+			TicketName:  record[5],
+			EventID:     record[6],
 		}
 
 		if err := s.repo.Create(&ticket); err != nil {
