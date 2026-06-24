@@ -5,6 +5,7 @@ import (
 	"go-ticketing/repositories"
 	"go-ticketing/utils"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -66,7 +67,9 @@ func (s *userService) Create(user *models.User) error {
 	if err != nil {
 		return err
 	}
+	user.ID = uuid.New().String()
 	user.Password = string(hash)
+	user.Role = "user"
 	return s.userRepo.Create(user)
 }
 
