@@ -83,7 +83,7 @@ func (c *BookedSeatController) Delete(ctx *fiber.Ctx) error {
 			"id":      id,
 			"deleted": true,
 			"seat_id": bookedSeat.SeatID,
-			"show_id": bookedSeat.ShowID,
+			"show_id": bookedSeat.EventID,
 		}
 
 		payload, err := json.Marshal(deleteInfo)
@@ -158,5 +158,54 @@ func (c *BookedSeatController) UpsertBookedSeats(ctx *fiber.Ctx) error {
 		"success": true,
 		"data":    updatedSeats,
 		"message": "Successfully upserted booked seats",
+	})
+}
+
+// ConfirmBooking permanently books a locked seat for a ticket user
+func (c *BookedSeatController) ConfirmBooking(ctx *fiber.Ctx) error {
+	type Request struct {
+		EventID  string `json:"event_id"`
+		SeatID   string `json:"seat_id"`
+		TicketID string `json:"ticket_id"`
+		Name     string `json:"name"`
+	}
+
+	var req Request
+	if err := ctx.BodyParser(&req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request",
+		})
+	}
+
+	// In user flow, context is background. In real app, you might want timeout context.
+	seat, err := c.Service.ConfirmBooking(ctx.Context(), req.EventID, req.SeatID, req.TicketID, req.Name)
+	if err != nil {
+		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	// Broadcast the permanent booking
+	go func() {
+		payload, err := json.Marshal(seat)
+		if err != nil {
+			return
+		}
+
+		msg := models.Message{
+			Type:     "booked_seat",
+			SenderID: "system",
+			Payload:  payload,
+		}
+
+		c.WS.SendWebsocketMessage(msg)
+	}()
+
+	return ctx.JSON(fiber.Map{
+		"success": true,
+		"message": "Kursi berhasil dibooking secara permanen",
+		"data":    seat,
 	})
 }

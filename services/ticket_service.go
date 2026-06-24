@@ -18,6 +18,8 @@ type TicketService interface {
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
 	ImportFromCSV(file multipart.File) error
+	VerifyTicketCode(ticketCode string) (*models.Ticket, error)
+	ToggleGoodieBag(id string) (*models.Ticket, error)
 }
 
 type ticketService struct {
@@ -74,7 +76,7 @@ func (s *ticketService) ImportFromCSV(file multipart.File) error {
 			Phone:      record[3],
 			Gender:     record[4],
 			TicketName: record[5],
-			ShowID:     record[6],
+			EventID:    record[6],
 		}
 
 		if err := s.repo.Create(&ticket); err != nil {
@@ -83,4 +85,12 @@ func (s *ticketService) ImportFromCSV(file multipart.File) error {
 	}
 
 	return nil
+}
+
+func (s *ticketService) VerifyTicketCode(ticketCode string) (*models.Ticket, error) {
+	return s.repo.FindByTicketCode(ticketCode)
+}
+
+func (s *ticketService) ToggleGoodieBag(id string) (*models.Ticket, error) {
+	return s.repo.ToggleGoodieBag(id)
 }

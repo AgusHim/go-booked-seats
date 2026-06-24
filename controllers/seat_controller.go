@@ -76,7 +76,7 @@ func (c *SeatController) Delete(ctx *fiber.Ctx) error {
 
 func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 	type Request struct {
-		ShowID  string `json:"show_id"`
+		EventID string `json:"show_id"`
 		SeatID  string `json:"seat_id"`
 		AdminID string `json:"admin_id"`
 	}
@@ -88,7 +88,7 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 		})
 	}
 
-	status, err := ctl.seatService.TryLockSeat(context.Background(), body.ShowID, body.SeatID, body.AdminID)
+	status, err := ctl.seatService.TryLockSeat(context.Background(), body.EventID, body.SeatID, body.AdminID)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,
@@ -152,4 +152,16 @@ func StringToUint(s string) (uint, error) {
 		return 0, err
 	}
 	return uint(u64), nil
+}
+
+func (c *SeatController) SaveBulkLayout(ctx *fiber.Ctx) error {
+	var seats []models.Seat
+	if err := ctx.BodyParser(&seats); err != nil {
+		return ctx.Status(400).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	err := c.seatService.SaveBulkLayout(seats)
+	if err != nil {
+		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{"success": true, "message": "Layout saved successfully"})
 }

@@ -12,6 +12,8 @@ type TicketRepository interface {
 	Create(ticket *models.Ticket) error
 	FindAll(search string, page int, limit int, show_id string) ([]models.Ticket, int64, error)
 	FindByID(id string) (*models.Ticket, error)
+	FindByTicketCode(ticketCode string) (*models.Ticket, error)
+	ToggleGoodieBag(id string) (*models.Ticket, error)
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
 }
@@ -43,7 +45,7 @@ func (r *ticketRepository) FindAll(search string, page int, limit int, showID st
 	query := r.db.Model(&models.Ticket{}).Preload("BookedSeat").Preload("BookedSeat.Seat")
 
 	if showID != "" {
-		query = query.Where("show_id = ?", showID)
+		query = query.Where("event_id = ?", showID)
 	}
 
 	if search != "" {
@@ -66,6 +68,27 @@ func (r *ticketRepository) FindByID(id string) (*models.Ticket, error) {
 	var ticket models.Ticket
 	err := r.db.First(&ticket, "id = ?", id).Error
 	return &ticket, err
+}
+
+func (r *ticketRepository) FindByTicketCode(ticketCode string) (*models.Ticket, error) {
+	var ticket models.Ticket
+	err := r.db.Where("ticket_code = ?", ticketCode).First(&ticket).Error
+	if err != nil {
+		return nil, err
+	}
+	return &ticket, nil
+}
+
+func (r *ticketRepository) ToggleGoodieBag(id string) (*models.Ticket, error) {
+	var ticket models.Ticket
+	if err := r.db.First(&ticket, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	ticket.GoodieBagClaimed = !ticket.GoodieBagClaimed
+	if err := r.db.Save(&ticket).Error; err != nil {
+		return nil, err
+	}
+	return &ticket, nil
 }
 
 func (r *ticketRepository) Update(ticket *models.Ticket) error {

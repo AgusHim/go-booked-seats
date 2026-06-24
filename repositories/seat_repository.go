@@ -20,6 +20,7 @@ type SeatRepository interface {
 	Delete(id string) error
 	LockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error)
 	GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error)
+	SaveBulkLayout(seats []models.Seat) error
 }
 
 type seatRepository struct {
@@ -46,7 +47,7 @@ func (r *seatRepository) FindAll(showID string) ([]models.Seat, error) {
 	// Fallback to DB
 	query := r.db
 	if showID != "" {
-		query = query.Where("show_id = ?", showID)
+		query = query.Where("event_id = ?", showID)
 	}
 	if err := query.Find(&seats).Error; err != nil {
 		return nil, err
@@ -66,29 +67,57 @@ func (r *seatRepository) FindByID(id string) (models.Seat, error) {
 	return seat, err
 }
 
+func (r *seatRepository) invalidateCache(eventID string) {
+	ctx := context.Background()
+	r.rdb.Del(ctx, fmt.Sprintf("seats:all:%s", eventID))
+}
+
 func (r *seatRepository) Create(seat models.Seat) error {
-	return r.db.Create(&seat).Error
+	err := r.db.Create(&seat).Error
+	if err == nil {
+		r.invalidateCache(seat.EventID)
+	}
+	return err
 }
 
 func (r *seatRepository) Update(seat models.Seat) error {
-	return r.db.Save(&seat).Error
+	err := r.db.Save(&seat).Error
+	if err == nil {
+		r.invalidateCache(seat.EventID)
+	}
+	return err
 }
 
 func (r *seatRepository) Delete(id string) error {
-	return r.db.Delete(&models.Seat{}, "id = ?", id).Error
+	var seat models.Seat
+	r.db.First(&seat, "id = ?", id)
+	err := r.db.Delete(&models.Seat{}, "id = ?", id).Error
+	if err == nil && seat.EventID != "" {
+		r.invalidateCache(seat.EventID)
+	}
+	return err
 }
 
 func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error) {
-	key := fmt.Sprintf("%s:%s", showID, seatID)
+	userLockKey := fmt.Sprintf("user_lock:%s:%s", showID, userID)
+	key := fmt.Sprintf("seat_lock:%s:%s", showID, seatID)
+
+	// Check if user already locked a different seat
+	existingSeat, err := r.rdb.Get(ctx, userLockKey).Result()
+	if err == nil && existingSeat != seatID {
+		return "taken", fmt.Errorf("anda sudah mengunci kursi lain")
+	}
+
 	currentOwner, err := r.rdb.Get(ctx, key).Result()
 
 	if err == redis.Nil {
-		// Key belum ada → bisa lock
-		ok, err := r.rdb.SetNX(ctx, key, userID, 0).Result()
+		// Key belum ada → bisa lock (TTL 5 menit untuk war kursi)
+		ok, err := r.rdb.SetNX(ctx, key, userID, 5*time.Minute).Result()
 		if err != nil {
 			return "error", err
 		}
 		if ok {
+			r.rdb.Set(ctx, userLockKey, seatID, 5*time.Minute)
 			return "locked", nil // sukses lock
 		}
 		return "error", nil // gagal lock tanpa sebab
@@ -103,6 +132,7 @@ func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID str
 		if err != nil {
 			return "error", err
 		}
+		r.rdb.Del(ctx, userLockKey)
 		return "unlocked", nil
 	}
 
@@ -115,24 +145,26 @@ func (r *seatRepository) GetLockedSeats(ctx context.Context, showID string) ([]*
 	var locked []*models.BookedSeat
 
 	for {
-		keys, nextCursor, err := r.rdb.Scan(ctx, cursor, fmt.Sprintf("%s:*", showID), 100).Result()
+		keys, nextCursor, err := r.rdb.Scan(ctx, cursor, fmt.Sprintf("seat_lock:%s:*", showID), 100).Result()
 		if err != nil {
 			return nil, err
 		}
 		for _, key := range keys {
 			val, err := r.rdb.Get(ctx, key).Result()
 			if err == nil {
+				// key is seat_lock:event_id:seat_id
 				parts := strings.Split(key, ":")
-				show := parts[0]
-				seatID := parts[len(parts)-1]
-				seat := &models.BookedSeat{
+				if len(parts) >= 3 {
+					show := parts[1]
+					seatID := parts[2]
+					seat := &models.BookedSeat{
 					ID:      key,
-					ShowID:  show,
+					EventID: show,
 					SeatID:  seatID,
 					AdminID: val,
 				}
-
-				locked = append(locked, seat)
+					locked = append(locked, seat)
+				}
 			}
 		}
 		if nextCursor == 0 {
@@ -141,4 +173,16 @@ func (r *seatRepository) GetLockedSeats(ctx context.Context, showID string) ([]*
 		cursor = nextCursor
 	}
 	return locked, nil
+}
+
+func (r *seatRepository) SaveBulkLayout(seats []models.Seat) error {
+	for _, seat := range seats {
+		if err := r.db.Save(&seat).Error; err != nil {
+			return err
+		}
+	}
+	if len(seats) > 0 {
+		r.invalidateCache(seats[0].EventID)
+	}
+	return nil
 }

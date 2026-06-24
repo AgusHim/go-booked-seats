@@ -14,6 +14,7 @@ type SeatService interface {
 	Delete(id string) error
 	TryLockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error)
 	GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error)
+	SaveBulkLayout(seats []models.Seat) error
 }
 
 type seatService struct {
@@ -50,4 +51,8 @@ func (s *seatService) TryLockSeat(ctx context.Context, showID string, seatID str
 
 func (s *seatService) GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error) {
 	return s.repo.GetLockedSeats(ctx, showID)
+}
+
+func (s *seatService) SaveBulkLayout(seats []models.Seat) error {
+	return s.repo.SaveBulkLayout(seats)
 }

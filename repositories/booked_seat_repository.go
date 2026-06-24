@@ -24,7 +24,7 @@ func (r *BookedSeatRepository) FindAll(showID string) ([]models.BookedSeat, erro
 	query := r.DB
 
 	if showID != "" {
-		query = query.Where("show_id = ?", showID)
+		query = query.Where("event_id = ?", showID)
 	}
 
 	err := query.Preload("Ticket").Preload("Seat").Find(&bookedSeats).Error
@@ -54,7 +54,7 @@ func (r *BookedSeatRepository) UpsertBookedSeats(seats []models.BookedSeat) ([]m
 	ctx := context.Background()
 
 	for _, seat := range seats {
-		var key = fmt.Sprintf("%s:%s", seat.ShowID, seat.SeatID)
+		var key = fmt.Sprintf("seat_lock:%s:%s", seat.EventID, seat.SeatID)
 
 		if seat.ID != "" {
 			var existing models.BookedSeat
@@ -100,4 +100,39 @@ func (r *BookedSeatRepository) UpsertBookedSeats(seats []models.BookedSeat) ([]m
 	}
 
 	return result, nil
+}
+
+func (r *BookedSeatRepository) ConfirmBooking(ctx context.Context, eventID string, seatID string, ticketID string, name string) (*models.BookedSeat, error) {
+	// Cek apakah tiket sudah digunakan untuk booking di event ini
+	var existingBooking models.BookedSeat
+	if err := r.DB.Where("event_id = ? AND ticket_id = ?", eventID, ticketID).First(&existingBooking).Error; err == nil {
+		return nil, errors.New("tiket ini sudah digunakan untuk membooking kursi")
+	}
+
+	key := fmt.Sprintf("seat_lock:%s:%s", eventID, seatID)
+	owner, err := r.rdb.Get(ctx, key).Result()
+	if err == redis.Nil || owner != ticketID {
+		return nil, errors.New("sesi pemilihan kursi telah habis atau kursi dipilih orang lain")
+	}
+
+	seat := &models.BookedSeat{
+		EventID:  eventID,
+		SeatID:   seatID,
+		TicketID: ticketID,
+		Name:     name,
+		AdminID:  ticketID,
+	}
+
+	if err := r.DB.Create(seat).Error; err != nil {
+		return nil, err
+	}
+
+	var full models.BookedSeat
+	r.DB.Preload("Ticket").Preload("Seat").First(&full, "id = ?", seat.ID)
+
+	// Remove seat lock and user lock
+	userLockKey := fmt.Sprintf("user_lock:%s:%s", eventID, ticketID)
+	r.rdb.Del(ctx, key, userLockKey)
+
+	return &full, nil
 }

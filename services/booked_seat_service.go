@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"go-ticketing/models"
 	"go-ticketing/repositories"
@@ -47,4 +48,8 @@ func (s *BookedSeatService) Delete(id string, sessionAdminID string) error {
 
 func (s *BookedSeatService) UpsertBookedSeats(seats []models.BookedSeat) ([]models.BookedSeat, error) {
 	return s.Repo.UpsertBookedSeats(seats)
+}
+
+func (s *BookedSeatService) ConfirmBooking(ctx context.Context, eventID string, seatID string, ticketID string, name string) (*models.BookedSeat, error) {
+	return s.Repo.ConfirmBooking(ctx, eventID, seatID, ticketID, name)
 }

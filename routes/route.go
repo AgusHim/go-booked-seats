@@ -36,6 +36,10 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	dashboardService := services.NewDashboardService(dashboardRepo)
 	dashboardController := controllers.NewDashboardController(dashboardService)
 
+	eventRepo := repositories.NewEventRepository(db)
+	eventService := services.NewEventService(eventRepo)
+	eventController := controllers.NewEventController(eventService)
+
 	// Middleware: WebSocket Upgrade
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
@@ -50,8 +54,14 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	api := app.Group("/api")
 	api.Post("/login", userController.Login)
 	api.Post("/users", userController.Create)
+	api.Get("/events", eventController.GetEvents)
+	api.Get("/events/:id", eventController.GetEvent)
+
 	admin_api.Get("/users", userController.FindAll)
 	admin_api.Delete("/users/:id", userController.Delete)
+	admin_api.Post("/events", eventController.CreateEvent)
+	admin_api.Put("/events/:id", eventController.UpdateEvent)
+	admin_api.Delete("/events/:id", eventController.DeleteEvent)
 
 	seat := app.Group("/api/seats")
 	seat.Get("/", seatController.GetAll)
@@ -62,6 +72,23 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	admin_api.Post("/seats", seatController.Create)
 	admin_api.Put("/seats/:id", seatController.Update)
 	admin_api.Delete("/seats/:id", seatController.Delete)
+	admin_api.Get("/tickets", ticketController.GetAll)
+	admin_api.Get("/tickets/:id", ticketController.GetByID)
+	admin_api.Post("/tickets", ticketController.Create)
+	admin_api.Put("/tickets/:id", ticketController.Update)
+	admin_api.Delete("/tickets/:id", ticketController.Delete)
+	admin_api.Post("/tickets/:id/goodie-bag", ticketController.ToggleGoodieBag)
+	admin_api.Post("/seats/layout", seatController.SaveBulkLayout)
+
+	importController := controllers.NewImportController(db)
+	admin_api.Post("/import-excel", importController.UploadExcel)
+
+	// War Kursi: Public verification endpoint (no admin auth required)
+	verifyController := controllers.NewVerifyController(ticketService)
+	api.Post("/verify-ticket", verifyController.VerifyTicket)
+	api.Post("/verify-ticket-pdf", verifyController.VerifyTicketPDF) // War kursi: verify via PDF
+	api.Post("/seats/lock", seatController.LockSeat)       // War kursi: public seat locking
+	api.Post("/seats/confirm", bookedSeat.ConfirmBooking) // War kursi: public seat permanent booking
 
 	booked := app.Group("/api/booked-seats")
 

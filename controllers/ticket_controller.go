@@ -114,3 +114,12 @@ func (c *TicketController) ImportCSV(ctx *fiber.Ctx) error {
 		"message": "Successfully imported tickets from CSV",
 	})
 }
+
+func (c *TicketController) ToggleGoodieBag(ctx *fiber.Ctx) error {
+	id := ctx.Params("id")
+	ticket, err := c.service.ToggleGoodieBag(id)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{"success": true, "data": ticket, "message": "Goodie bag status updated"})
+}
