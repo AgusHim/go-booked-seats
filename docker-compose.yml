@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - POSTGRE_URL=postgres://ticketing:SsaRYftU9jJGTXWX@postgres:5432/ticketing?sslmode=disable
+      - REDIS_URL=redis:6379
+      - SEAT_CACHE_DURATION=0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ticketing-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=ticketing
+      - POSTGRES_PASSWORD=SsaRYftU9jJGTXWX
+      - POSTGRES_DB=ticketing
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketing"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ticketing-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ticketing-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ticketing-network:
+    driver: bridge
