@@ -99,13 +99,31 @@ func (r *seatRepository) Delete(id string) error {
 }
 
 func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error) {
-	userLockKey := fmt.Sprintf("user_lock:%s:%s", showID, userID)
 	key := fmt.Sprintf("seat_lock:%s:%s", showID, seatID)
 
-	// Check if user already locked a different seat
-	existingSeat, err := r.rdb.Get(ctx, userLockKey).Result()
-	if err == nil && existingSeat != seatID {
-		return "taken", fmt.Errorf("anda sudah mengunci kursi lain")
+	isAdmin := false
+	var user models.User
+	if err := r.db.Where("id = ?", userID).First(&user).Error; err == nil {
+		if user.Role == "admin" {
+			isAdmin = true
+		}
+	}
+
+	userLockKey := fmt.Sprintf("user_lock:%s:%s", showID, userID)
+
+	if !isAdmin {
+		// Check if user already has a permanently booked seat
+		var count int64
+		r.db.Model(&models.BookedSeat{}).Where("ticket_id = ?", userID).Count(&count)
+		if count > 0 {
+			return "error", fmt.Errorf("anda sudah memiliki kursi yang dipesan secara permanen")
+		}
+
+		// Check if user already locked a different seat
+		existingSeat, err := r.rdb.Get(ctx, userLockKey).Result()
+		if err == nil && existingSeat != seatID {
+			return "taken", fmt.Errorf("anda sudah mengunci kursi lain")
+		}
 	}
 
 	currentOwner, err := r.rdb.Get(ctx, key).Result()
@@ -117,7 +135,9 @@ func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID str
 			return "error", err
 		}
 		if ok {
-			r.rdb.Set(ctx, userLockKey, seatID, 5*time.Minute)
+			if !isAdmin {
+				r.rdb.Set(ctx, userLockKey, seatID, 5*time.Minute)
+			}
 			return "locked", nil // sukses lock
 		}
 		return "error", nil // gagal lock tanpa sebab
@@ -132,7 +152,9 @@ func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID str
 		if err != nil {
 			return "error", err
 		}
-		r.rdb.Del(ctx, userLockKey)
+		if !isAdmin {
+			r.rdb.Del(ctx, userLockKey)
+		}
 		return "unlocked", nil
 	}
 

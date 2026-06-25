@@ -30,7 +30,7 @@ func (r *ticketRepository) Create(ticket *models.Ticket) error {
 	return r.db.Create(ticket).Error
 }
 
-func (r *ticketRepository) FindAll(search string, page int, limit int, showID string) ([]models.Ticket, int64, error) {
+func (r *ticketRepository) FindAll(search string, page int, limit int, eventID string) ([]models.Ticket, int64, error) {
 	var tickets []models.Ticket
 	var total int64
 
@@ -44,15 +44,15 @@ func (r *ticketRepository) FindAll(search string, page int, limit int, showID st
 
 	query := r.db.Model(&models.Ticket{}).Preload("BookedSeat").Preload("BookedSeat.Seat").Preload("Event")
 
-	if showID != "" {
-		query = query.Where("event_id = ?", showID)
+	if eventID != "" {
+		query = query.Where("event_id = ?", eventID)
 	}
 
 	if search != "" {
 		lowerKeyword := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
-			"LOWER(ticket_id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?",
-			lowerKeyword, lowerKeyword, lowerKeyword,
+			"LOWER(ticket_code) LIKE ? OR LOWER(ext_ticket_id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?",
+			lowerKeyword, lowerKeyword, lowerKeyword, lowerKeyword,
 		)
 	}
 
