@@ -1,6 +1,8 @@
 package models
 
 import (
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +11,7 @@ import (
 
 type Event struct {
 	ID          string    `json:"id" gorm:"primaryKey;type:uuid"`
+	Slug        string    `json:"slug" gorm:"uniqueIndex"`
 	Name        string    `json:"name" validate:"required"`
 	Date        time.Time `json:"date" validate:"required"`
 	Location    string    `json:"location" validate:"required"`
@@ -27,5 +30,15 @@ func (e *Event) BeforeCreate(tx *gorm.DB) (err error) {
 	if e.ID == "" {
 		e.ID = uuid.New().String()
 	}
+	if e.Slug == "" && e.Name != "" {
+		e.Slug = generateSlug(e.Name)
+	}
 	return
+}
+
+func generateSlug(s string) string {
+	s = strings.ToLower(s)
+	re := regexp.MustCompile(`[^a-z0-9]+`)
+	s = re.ReplaceAllString(s, "-")
+	return strings.Trim(s, "-")
 }

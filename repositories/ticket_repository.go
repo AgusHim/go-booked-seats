@@ -42,7 +42,7 @@ func (r *ticketRepository) FindAll(search string, page int, limit int, showID st
 	}
 	offset := (page - 1) * limit
 
-	query := r.db.Model(&models.Ticket{}).Preload("BookedSeat").Preload("BookedSeat.Seat")
+	query := r.db.Model(&models.Ticket{}).Preload("BookedSeat").Preload("BookedSeat.Seat").Preload("Event")
 
 	if showID != "" {
 		query = query.Where("event_id = ?", showID)

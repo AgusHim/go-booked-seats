@@ -30,7 +30,7 @@ func (r *eventRepository) GetEvents() ([]models.Event, error) {
 
 func (r *eventRepository) GetEvent(id string) (*models.Event, error) {
 	var event models.Event
-	err := r.db.First(&event, "id = ?", id).Error
+	err := r.db.First(&event, "id = ? OR slug = ?", id, id).Error
 	if err == gorm.ErrRecordNotFound {
 		// If not found, create default event
 		if id == "default" {
