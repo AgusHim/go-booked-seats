@@ -12,7 +12,7 @@ type SeatService interface {
 	Create(seat models.Seat) error
 	Update(seat models.Seat) error
 	Delete(id string) error
-	TryLockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error)
+	TryLockSeat(ctx context.Context, showID string, seatID string, userID string, action string) (string, error)
 	GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error)
 	SaveBulkLayout(seats []models.Seat) error
 }
@@ -45,8 +45,8 @@ func (s *seatService) Delete(id string) error {
 	return s.repo.Delete(id)
 }
 
-func (s *seatService) TryLockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error) {
-	return s.repo.LockSeat(ctx, showID, seatID, userID)
+func (s *seatService) TryLockSeat(ctx context.Context, showID string, seatID string, userID string, action string) (string, error) {
+	return s.repo.LockSeat(ctx, showID, seatID, userID, action)
 }
 
 func (s *seatService) GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error) {

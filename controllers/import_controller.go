@@ -3,6 +3,7 @@ package controllers
 import (
 	"go-ticketing/models"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -92,6 +93,24 @@ func (ic *ImportController) UploadExcel(c *fiber.Ctx) error {
 
 		age, _ := strconv.Atoi(getCol("Umur"))
 
+		ticketName := getCol("Tiket")
+		category := getCol("Kategori")
+
+		if category == "" {
+			lowerTicketName := strings.ToLower(ticketName)
+			if strings.Contains(lowerTicketName, "platinum") {
+				category = "platinum"
+			} else if strings.Contains(lowerTicketName, "gold") {
+				category = "gold"
+			} else if strings.Contains(lowerTicketName, "silver") {
+				category = "silver"
+			} else if strings.Contains(lowerTicketName, "vip") {
+				category = "vip"
+			} else if strings.Contains(lowerTicketName, "reguler") {
+				category = "reguler"
+			}
+		}
+
 		ticket := models.Ticket{
 			ID:               uuid.New().String(),
 			RegistrationTime: getCol("Waktu Daftar"),
@@ -102,15 +121,15 @@ func (ic *ImportController) UploadExcel(c *fiber.Ctx) error {
 			Age:              age,
 			City:             getCol("Kota"),
 			Province:         getCol("Provinsi"),
-			TicketName:       getCol("Tiket"),
-			Category:         getCol("Kategori"),
+			TicketName:       ticketName,
+			Category:         category,
 			OrderID:          orderID,
 			BuyerEmail:       getCol("Email Pemesan"),
 			BuyerName:        getCol("Nama pemesan"),
 			BuyerPhone:       getCol("Telepon Pemesan"),
 			VoucherName:      getCol("Nama voucher"),
 			TicketCode:       ticketCode,
-			ExtTicketID:         ticketCode,
+			ExtTicketID:      ticketCode,
 			EventID:          eventID,
 		}
 		newTickets = append(newTickets, ticket)

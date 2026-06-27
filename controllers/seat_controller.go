@@ -79,6 +79,7 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 		EventID string `json:"show_id"`
 		SeatID  string `json:"seat_id"`
 		AdminID string `json:"admin_id"`
+		Action  string `json:"action"`
 	}
 	var body Request
 	if err := c.BodyParser(&body); err != nil {
@@ -88,7 +89,7 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 		})
 	}
 
-	status, err := ctl.seatService.TryLockSeat(context.Background(), body.EventID, body.SeatID, body.AdminID)
+	status, err := ctl.seatService.TryLockSeat(context.Background(), body.EventID, body.SeatID, body.AdminID, body.Action)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"success": false,

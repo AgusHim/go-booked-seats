@@ -18,7 +18,7 @@ type SeatRepository interface {
 	Create(seat models.Seat) error
 	Update(seat models.Seat) error
 	Delete(id string) error
-	LockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error)
+	LockSeat(ctx context.Context, showID string, seatID string, userID string, action string) (string, error)
 	GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error)
 	SaveBulkLayout(seats []models.Seat) error
 }
@@ -98,7 +98,7 @@ func (r *seatRepository) Delete(id string) error {
 	return err
 }
 
-func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID string, userID string) (string, error) {
+func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID string, userID string, action string) (string, error) {
 	key := fmt.Sprintf("seat_lock:%s:%s", showID, seatID)
 
 	isAdmin := false
@@ -127,6 +127,16 @@ func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID str
 	}
 
 	currentOwner, err := r.rdb.Get(ctx, key).Result()
+
+	if action == "unlock" {
+		if err == nil && currentOwner == userID {
+			r.rdb.Del(ctx, key)
+			if !isAdmin {
+				r.rdb.Del(ctx, userLockKey)
+			}
+		}
+		return "unlocked", nil
+	}
 
 	if err == redis.Nil {
 		// Key belum ada → bisa lock (TTL 5 menit untuk war kursi)
