@@ -52,7 +52,7 @@ func TestSeatLockingConcurrency(t *testing.T) {
 			defer wg.Done()
 
 			uid := "user-" + string(rune(userID))
-			status, err := repo.LockSeat(ctx, showID, seatID, uid)
+			status, err := repo.LockSeat(ctx, showID, seatID, uid, "")
 			
 			if err == nil && status == "locked" {
 				atomic.AddInt32(&successCount, 1)

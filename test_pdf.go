@@ -10,7 +10,11 @@ import (
 )
 
 func main() {
-	f, err := os.Open("../Agus Himawan (WTI33M0S).pdf")
+	path := "../Agus Himawan (WTI33M0S).pdf"
+	if len(os.Args) > 1 {
+		path = os.Args[1]
+	}
+	f, err := os.Open(path)
 	if err != nil {
 		panic(err)
 	}

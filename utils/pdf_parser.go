@@ -2,12 +2,19 @@ package utils
 
 import (
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/ledongthuc/pdf"
+	"github.com/makiuchi-d/gozxing"
+	"github.com/makiuchi-d/gozxing/qrcode"
+	pdfcpu "github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
 // ExtractedTicketInfo holds parsed ticket data from a PDF page
@@ -21,6 +28,9 @@ type ExtractedTicketInfo struct {
 
 // ticketCodeRe matches [ALPHANUMERIC] in square brackets (6-12 chars), allowing newlines
 var ticketCodeRe = regexp.MustCompile(`\[\s*([A-Z0-9]{6,12})\s*\]`)
+
+// looseTicketCodeRe matches standalone ticket-code-looking values in QR payloads.
+var looseTicketCodeRe = regexp.MustCompile(`\b([A-Z0-9]{6,12})\b`)
 
 // orderIDRe matches Order #ALPHANUMERIC
 var orderIDRe = regexp.MustCompile(`(?i)Order\s*#([A-Z0-9]+)`)
@@ -49,8 +59,13 @@ func isValidTicketCode(code string) bool {
 
 // ExtractTicketsFromPDF reads a PDF file and extracts e-ticket information from each page.
 // Supports multi-page PDFs where each page is a separate e-ticket.
-func ExtractTicketsFromPDF(reader io.ReaderAt, size int64) ([]ExtractedTicketInfo, error) {
-	pdfReader, err := pdf.NewReader(reader, size)
+func ExtractTicketsFromPDF(reader io.ReadSeeker, size int64) ([]ExtractedTicketInfo, error) {
+	readerAt, ok := reader.(io.ReaderAt)
+	if !ok {
+		return nil, fmt.Errorf("reader must implement io.ReaderAt")
+	}
+
+	pdfReader, err := pdf.NewReader(readerAt, size)
 	if err != nil {
 		return nil, fmt.Errorf("gagal membaca PDF: %w", err)
 	}
@@ -63,6 +78,7 @@ func ExtractTicketsFromPDF(reader io.ReaderAt, size int64) ([]ExtractedTicketInf
 	var tickets []ExtractedTicketInfo
 	seen := make(map[string]bool)
 
+	// Step 1: Text-based Extraction
 	for pageNum := 1; pageNum <= numPages; pageNum++ {
 		page := pdfReader.Page(pageNum)
 		if page.V.IsNull() {
@@ -78,6 +94,49 @@ func ExtractTicketsFromPDF(reader io.ReaderAt, size int64) ([]ExtractedTicketInf
 		if ticket != nil && !seen[ticket.TicketCode] {
 			seen[ticket.TicketCode] = true
 			tickets = append(tickets, *ticket)
+		}
+	}
+
+	// Step 2: QR Code Image Extraction using pdfcpu
+	if _, err := reader.Seek(0, io.SeekStart); err == nil {
+		conf := model.NewDefaultConfiguration()
+		if images, err := pdfcpu.ExtractImagesRaw(reader, nil, conf); err == nil {
+			qrReader := qrcode.NewQRCodeReader()
+			for pageIndex, pageImages := range images {
+				pageNum := pageIndex + 1
+				for _, img := range pageImages {
+					decoded, _, err := image.Decode(img.Reader)
+					if err != nil {
+						continue
+					}
+					bmp, err := gozxing.NewBinaryBitmapFromImage(decoded)
+					if err != nil {
+						continue
+					}
+					result, err := qrReader.Decode(bmp, nil)
+					if err != nil {
+						continue
+					}
+					
+					ticketCode := parseTicketCodeFromQRPayload(result.GetText())
+					if ticketCode == "" || seen[ticketCode] {
+						continue
+					}
+					seen[ticketCode] = true
+
+					info := ExtractedTicketInfo{TicketCode: ticketCode, Page: pageNum}
+					// Attach name/email if parsed from text on the same page
+					for _, t := range tickets {
+						if t.Page == pageNum {
+							info.OrderID = t.OrderID
+							info.Name = t.Name
+							info.Email = t.Email
+							break
+						}
+					}
+					tickets = append(tickets, info)
+				}
+			}
 		}
 	}
 
@@ -144,4 +203,32 @@ func parseTicketText(text string, pageNum int) *ExtractedTicketInfo {
 	}
 
 	return info
+}
+
+// (Legacy image decoding removed - now using pdfcpu for robust DCTDecode support)
+
+func parseTicketCodeFromQRPayload(payload string) string {
+	payload = strings.TrimSpace(strings.ToUpper(payload))
+	if payload == "" {
+		return ""
+	}
+
+	// If the entire payload is exactly a 6-12 character alphanumeric string,
+	// it's highly likely to be the ticket code itself.
+	if regexp.MustCompile(`^[A-Z0-9]{6,12}$`).MatchString(payload) {
+		return payload
+	}
+
+	if ticket := parseTicketText(payload, 0); ticket != nil {
+		return ticket.TicketCode
+	}
+
+	matches := looseTicketCodeRe.FindAllStringSubmatch(payload, -1)
+	for _, match := range matches {
+		if isValidTicketCode(match[1]) {
+			return match[1]
+		}
+	}
+
+	return ""
 }
