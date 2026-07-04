@@ -6,9 +6,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - POSTGRE_URL=postgres://ticketing:SsaRYftU9jJGTXWX@postgres:5432/ticketing?sslmode=disable
-      - REDIS_URL=redis:6379
-      - SEAT_CACHE_DURATION=0
+      - POSTGRE_URL=${POSTGRE_URL}
+      - REDIS_URL=${REDIS_URL:-redis:6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - REQUIRE_JWT_SECRET=${REQUIRE_JWT_SECRET:-true}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,15 +23,13 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=ticketing
-      - POSTGRES_PASSWORD=SsaRYftU9jJGTXWX
-      - POSTGRES_DB=ticketing
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=${POSTGRES_USER:-ticketing}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-ticketing}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ticketing"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ticketing} -d ${POSTGRES_DB:-ticketing}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -37,12 +38,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping"]
       interval: 10s
       timeout: 5s
       retries: 5

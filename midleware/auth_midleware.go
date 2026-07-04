@@ -1,29 +1,80 @@
 package middleware
 
 import (
+	"go-ticketing/models"
 	"go-ticketing/utils"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
-func AuthProtected() fiber.Handler {
+func AuthProtected(db *gorm.DB) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		tokenStr := c.Get("Authorization")
-		if tokenStr == "" {
+		claims, err := utils.ParseJWT(c.Get("Authorization"))
+		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Missing token"})
 		}
 
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-			return utils.JWT_SECRET, nil
-		})
-		if err != nil || !token.Valid {
+		userID, ok := utils.ClaimString(claims, "user_id")
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid token"})
+		}
+
+		c.Locals("user_id", userID)
+		return c.Next()
+	}
+}
+
+func AdminProtected(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		claims, err := utils.ParseJWT(c.Get("Authorization"))
+		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid or expired token"})
 		}
 
-		claims := token.Claims.(jwt.MapClaims)
-		c.Locals("user_id", claims["user_id"].(string))
+		userID, ok := utils.ClaimString(claims, "user_id")
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid token"})
+		}
 
+		var user models.User
+		if err := db.First(&user, "id = ?", userID).Error; err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid user"})
+		}
+		if user.Role != "admin" {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "Admin access required"})
+		}
+
+		c.Locals("user_id", user.ID)
+		c.Locals("role", user.Role)
+		return c.Next()
+	}
+}
+
+func TicketProtected(db *gorm.DB) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		claims, err := utils.ParseJWT(c.Get("Authorization"))
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid or expired token"})
+		}
+
+		tokenType, ok := utils.ClaimString(claims, "type")
+		if !ok || tokenType != "war_kursi" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid ticket token"})
+		}
+
+		ticketID, ok := utils.ClaimString(claims, "ticket_id")
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Invalid ticket token"})
+		}
+
+		var ticket models.Ticket
+		if err := db.First(&ticket, "id = ?", ticketID).Error; err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Ticket not found"})
+		}
+
+		c.Locals("ticket_id", ticket.ID)
+		c.Locals("ticket", &ticket)
 		return c.Next()
 	}
 }

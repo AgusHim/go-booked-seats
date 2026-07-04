@@ -1,0 +1,102 @@
+{
+    "data": {
+        "eventConnection": {
+            "pageInfo": {
+                "endCursor": "R1BDOlM6Y21xeXI2aG51MDl1Y3M2MDF1dTlqMG5naA==",
+                "hasNextPage": false
+            },
+            "edges": [
+                {
+                    "cursor": "R1BDOlM6Y21xeXJmMjg3MDl1b3M2MDFvNTBmcHlvcg==",
+                    "node": {
+                        "decodedId": "cmqyrf28709uos601o50fpyor",
+                        "title": "DISCONNECT - ITTIBA YOGYAKARTA",
+                        "startDate": "2026-08-15T12:30:00.000Z",
+                        "endDate": "2026-08-15T15:30:00.000Z",
+                        "isPublished": false,
+                        "allowedGender": "BOTH",
+                        "__typename": "Event",
+                        "id": "RXZlbnQ6Y21xeXJmMjg3MDl1b3M2MDFvNTBmcHlvcg==",
+                        "bannerImage": {
+                            "url": "https://asset.darisini.id/main/1782709851741-WhatsApp_Image_2026-06-14_at_01.28.29.jpeg",
+                            "secureUrl": "https://img.darisini.id/main/1782709851741-WhatsApp_Image_2026-06-14_at_01.28.29.jpeg?exp=1783409965&sig=161e29cb3309904af3e6b5d54f9ad453c7e5e8300f41a1a33ecc34a27e4c47ac",
+                            "id": "SW1hZ2U6Y21xeXJmMjgxMDl1bXM2MDExanpqZDRnaA=="
+                        },
+                        "circleProfile": {
+                            "name": "YukNgajiID",
+                            "id": "Q2lyY2xlUHJvZmlsZTpjbDlhcHRiOWEzNzYzNmluZWc1cDR4dXptbg==",
+                            "picture": {
+                                "url": "https://asset.darisini.id/main/bd5e1472-5aff-465b-8163-57a28059982f.jpg",
+                                "secureUrl": "https://img.darisini.id/main/bd5e1472-5aff-465b-8163-57a28059982f.jpg?exp=1783409965&sig=47acf32c4ec4ad62e8ab1f928b5040048ae8d4acf7131dbd5fd18f163c1bdb9a",
+                                "id": "SW1hZ2U6Y2w5YXB0Yjh1Mzc2MjdpbmVndW1qa2tmcDk="
+                            }
+                        },
+                        "locationTypes": [
+                            "OFFLINE"
+                        ]
+                    }
+                },
+                {
+                    "cursor": "R1BDOlM6Y21xeXJhbHB1MDl1aXM2MDFoM3ZnbG01Yg==",
+                    "node": {
+                        "decodedId": "cmqyralpu09uis601h3vglm5b",
+                        "title": "RECONNECT - ITTIBA YOGYAKARTA",
+                        "startDate": "2026-08-15T01:00:00.000Z",
+                        "endDate": "2026-08-15T04:00:00.000Z",
+                        "isPublished": false,
+                        "allowedGender": "BOTH",
+                        "__typename": "Event",
+                        "id": "RXZlbnQ6Y21xeXJhbHB1MDl1aXM2MDFoM3ZnbG01Yg==",
+                        "bannerImage": {
+                            "url": "https://asset.darisini.id/main/1782709643534-WhatsApp_Image_2026-06-14_at_01.28.28__1_.jpeg",
+                            "secureUrl": "https://img.darisini.id/main/1782709643534-WhatsApp_Image_2026-06-14_at_01.28.28__1_.jpeg?exp=1783409965&sig=b72f996a6bd154a1ae3ca87725c935a8c5da77aa5f11710fea85789df7c9477a",
+                            "id": "SW1hZ2U6Y21xeXJhbHBrMDl1Z3M2MDF6NDc3OHE5Mg=="
+                        },
+                        "circleProfile": {
+                            "name": "YukNgajiID",
+                            "id": "Q2lyY2xlUHJvZmlsZTpjbDlhcHRiOWEzNzYzNmluZWc1cDR4dXptbg==",
+                            "picture": {
+                                "url": "https://asset.darisini.id/main/bd5e1472-5aff-465b-8163-57a28059982f.jpg",
+                                "secureUrl": "https://img.darisini.id/main/bd5e1472-5aff-465b-8163-57a28059982f.jpg?exp=1783409965&sig=47acf32c4ec4ad62e8ab1f928b5040048ae8d4acf7131dbd5fd18f163c1bdb9a",
+                                "id": "SW1hZ2U6Y2w5YXB0Yjh1Mzc2MjdpbmVndW1qa2tmcDk="
+                            }
+                        },
+                        "locationTypes": [
+                            "OFFLINE"
+                        ]
+                    }
+                },
+                {
+                    "cursor": "R1BDOlM6Y21xeXI2aG51MDl1Y3M2MDF1dTlqMG5naA==",
+                    "node": {
+                        "decodedId": "cmqyr6hnu09ucs601uu9j0ngh",
+                        "title": "BUNDLING - ITTIBA YOGYAKARTA",
+                        "startDate": "2026-08-15T00:00:00.000Z",
+                        "endDate": "2026-08-15T15:00:00.000Z",
+                        "isPublished": false,
+                        "allowedGender": "BOTH",
+                        "__typename": "Event",
+                        "id": "RXZlbnQ6Y21xeXI2aG51MDl1Y3M2MDF1dTlqMG5naA==",
+                        "bannerImage": {
+                            "url": "https://asset.darisini.id/main/1782709450897-WhatsApp_Image_2026-06-14_at_01.28.28.jpeg",
+                            "secureUrl": "https://img.darisini.id/main/1782709450897-WhatsApp_Image_2026-06-14_at_01.28.28.jpeg?exp=1783409965&sig=d21bba5a09d578371264a151106e6acd4f8b0108314a765d9a778c63ab4cebb9",
+                            "id": "SW1hZ2U6Y21xeXI2aG5rMDl1YXM2MDEwZnB2OGZ5dA=="
+                        },
+                        "circleProfile": {
+                            "name": "YukNgajiID",
+                            "id": "Q2lyY2xlUHJvZmlsZTpjbDlhcHRiOWEzNzYzNmluZWc1cDR4dXptbg==",
+                            "picture": {
+                                "url": "https://asset.darisini.id/main/bd5e1472-5aff-465b-8163-57a28059982f.jpg",
+                                "secureUrl": "https://img.darisini.id/main/bd5e1472-5aff-465b-8163-57a28059982f.jpg?exp=1783409965&sig=47acf32c4ec4ad62e8ab1f928b5040048ae8d4acf7131dbd5fd18f163c1bdb9a",
+                                "id": "SW1hZ2U6Y2w5YXB0Yjh1Mzc2MjdpbmVndW1qa2tmcDk="
+                            }
+                        },
+                        "locationTypes": [
+                            "OFFLINE"
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

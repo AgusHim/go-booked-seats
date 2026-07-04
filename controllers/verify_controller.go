@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"bytes"
-	"fmt"
 	"go-ticketing/services"
 	"go-ticketing/utils"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -47,7 +47,7 @@ func (vc *VerifyController) VerifyTicket(c *fiber.Ctx) error {
 	}
 
 	// Generate JWT token for war kursi session
-	token, err := utils.GenerateTicketJWT(ticket.ID, ticket.TicketCode, ticket.Gender, ticket.Category, ticket.TicketName, ticket.Name)
+	token, err := utils.GenerateTicketJWT(ticket.ID, ticket.TicketCode, ticket.Gender, ticket.Category, ticket.TicketName, ticket.Name, ticket.EventID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -114,17 +114,14 @@ func (vc *VerifyController) VerifyTicketPDF(c *fiber.Ctx) error {
 	// Extract ticket codes from PDF
 	extracted, err := utils.ExtractTicketsFromPDF(reader, int64(len(data)))
 	if err != nil {
-		fmt.Println("[PDF OCR] Error extracting:", err)
+		log.Printf("PDF ticket extraction failed: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membaca PDF: " + err.Error(),
 		})
 	}
 
-	fmt.Printf("[PDF OCR] Found %d potential tickets in PDF\n", len(extracted))
-	for _, ext := range extracted {
-		fmt.Printf(" - Extracted Code: '%s'\n", ext.TicketCode)
-	}
+	log.Printf("PDF ticket extraction found %d potential ticket(s)", len(extracted))
 
 	if len(extracted) == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -153,11 +150,11 @@ func (vc *VerifyController) VerifyTicketPDF(c *fiber.Ctx) error {
 	for _, ext := range extracted {
 		ticket, err := vc.ticketService.VerifyTicketCode(ext.TicketCode)
 		if err != nil {
-			fmt.Printf("[PDF OCR] DB validation failed for '%s': %v\n", ext.TicketCode, err)
+			log.Printf("PDF ticket validation skipped one extracted code: %v", err)
 			continue // Skip tickets not found in DB
 		}
 
-		token, err := utils.GenerateTicketJWT(ticket.ID, ticket.TicketCode, ticket.Gender, ticket.Category, ticket.TicketName, ticket.Name)
+		token, err := utils.GenerateTicketJWT(ticket.ID, ticket.TicketCode, ticket.Gender, ticket.Category, ticket.TicketName, ticket.Name, ticket.EventID)
 		if err != nil {
 			continue
 		}

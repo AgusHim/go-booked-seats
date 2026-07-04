@@ -1,6 +1,10 @@
 package routes
 
 import (
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
 	"github.com/redis/go-redis/v9"
@@ -50,14 +54,22 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 
 	// WebSocket Endpoint
 	app.Get("/ws", ws.UpgradeConnection)
-	admin_api := app.Group("/admin_api", middleware.AuthProtected())
+	admin_api := app.Group("/admin_api", middleware.AdminProtected(db))
 	api := app.Group("/api")
-	api.Post("/login", userController.Login)
-	api.Post("/users", userController.Create)
+	loginLimiter := simpleRateLimiter(5, time.Minute)
+	verifyLimiter := simpleRateLimiter(10, time.Minute)
+	pdfLimiter := simpleRateLimiter(3, time.Minute)
+	lockLimiter := simpleRateLimiter(120, time.Minute)
+	confirmLimiter := simpleRateLimiter(60, time.Minute)
+	lockTicketLimiter := simpleTicketRateLimiter(30, time.Minute)
+	confirmTicketLimiter := simpleTicketRateLimiter(10, time.Minute)
+
+	api.Post("/login", loginLimiter, userController.Login)
 	api.Get("/events", eventController.GetEvents)
 	api.Get("/events/:id", eventController.GetEvent)
 
 	admin_api.Get("/users", userController.FindAll)
+	admin_api.Post("/users", userController.Create)
 	admin_api.Delete("/users/:id", userController.Delete)
 	admin_api.Post("/events", eventController.CreateEvent)
 	admin_api.Put("/events/:id", eventController.UpdateEvent)
@@ -85,14 +97,16 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 
 	// War Kursi: Public verification endpoint (no admin auth required)
 	verifyController := controllers.NewVerifyController(ticketService)
-	api.Post("/verify-ticket", verifyController.VerifyTicket)
-	api.Post("/verify-ticket-pdf", verifyController.VerifyTicketPDF) // War kursi: verify via PDF
-	api.Post("/seats/lock", seatController.LockSeat)       // War kursi: public seat locking
-	api.Post("/seats/confirm", bookedSeat.ConfirmBooking) // War kursi: public seat permanent booking
+	api.Post("/verify-ticket", verifyLimiter, verifyController.VerifyTicket)
+	api.Post("/verify-ticket-pdf", pdfLimiter, verifyController.VerifyTicketPDF)                                                // War kursi: verify via PDF
+	api.Post("/seats/lock", lockLimiter, middleware.TicketProtected(db), lockTicketLimiter, seatController.LockSeat)            // War kursi: ticket-auth seat locking
+	api.Post("/seats/confirm", confirmLimiter, middleware.TicketProtected(db), confirmTicketLimiter, bookedSeat.ConfirmBooking) // War kursi: ticket-auth permanent booking
 
 	booked := app.Group("/api/booked-seats")
 
-	booked.Get("/", bookedSeat.GetAll)
+	booked.Get("/", bookedSeat.GetPublic)
+	booked.Get("/me", middleware.TicketProtected(db), bookedSeat.GetMine)
+	admin_api.Get("/booked-seats", bookedSeat.GetAll)
 	admin_api.Get("/booked-seats/:id", bookedSeat.GetByID)
 	admin_api.Post("/booked-seats", bookedSeat.Create)
 	admin_api.Put("/booked-seats/:id", bookedSeat.Update)
@@ -108,4 +122,63 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	tickets.Post("/import", ticketController.ImportCSV)
 
 	admin_api.Get("/dashboard", dashboardController.GetDashboardData)
+}
+
+type rateLimitBucket struct {
+	count   int
+	resetAt time.Time
+}
+
+func simpleRateLimiter(max int, window time.Duration) fiber.Handler {
+	return simpleRateLimiterBy(max, window, func(c *fiber.Ctx) string {
+		return c.IP() + ":" + c.Path()
+	})
+}
+
+func simpleTicketRateLimiter(max int, window time.Duration) fiber.Handler {
+	return simpleRateLimiterBy(max, window, func(c *fiber.Ctx) string {
+		ticketID, _ := c.Locals("ticket_id").(string)
+		return "ticket:" + ticketID + ":" + c.Path()
+	})
+}
+
+func simpleRateLimiterBy(max int, window time.Duration, keyFn func(*fiber.Ctx) string) fiber.Handler {
+	var mu sync.Mutex
+	buckets := make(map[string]rateLimitBucket)
+
+	return func(c *fiber.Ctx) error {
+		now := time.Now()
+		key := keyFn(c)
+
+		mu.Lock()
+		bucket := buckets[key]
+		if bucket.resetAt.IsZero() || now.After(bucket.resetAt) {
+			bucket = rateLimitBucket{resetAt: now.Add(window)}
+		}
+		bucket.count++
+		buckets[key] = bucket
+		remaining := max - bucket.count
+		resetAt := bucket.resetAt
+		mu.Unlock()
+
+		c.Set("X-RateLimit-Limit", strconv.Itoa(max))
+		c.Set("X-RateLimit-Remaining", strconv.Itoa(maxInt(remaining, 0)))
+		c.Set("X-RateLimit-Reset", strconv.Itoa(int(time.Until(resetAt).Seconds())))
+
+		if bucket.count > max {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"message": "Too many requests",
+			})
+		}
+
+		return c.Next()
+	}
+}
+
+func maxInt(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

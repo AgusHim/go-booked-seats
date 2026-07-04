@@ -2,11 +2,13 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"go-ticketing/models"
 	"go-ticketing/services"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 type BookedSeatController struct {
@@ -18,6 +20,13 @@ func NewBookedSeatController(service *services.BookedSeatService, ws WebsocketCo
 	return &BookedSeatController{Service: service, WS: ws}
 }
 
+func publicBookedSeatPayload(seat models.BookedSeat) fiber.Map {
+	return fiber.Map{
+		"seat_id":  seat.SeatID,
+		"event_id": seat.EventID,
+	}
+}
+
 func (c *BookedSeatController) GetAll(ctx *fiber.Ctx) error {
 	showID := ctx.Query("show_id")
 	bookedSeats, err := c.Service.GetAll(showID)
@@ -25,6 +34,42 @@ func (c *BookedSeatController) GetAll(ctx *fiber.Ctx) error {
 		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
 	return ctx.JSON(fiber.Map{"success": true, "data": bookedSeats})
+}
+
+func (c *BookedSeatController) GetPublic(ctx *fiber.Ctx) error {
+	showID := ctx.Query("show_id")
+	bookedSeats, err := c.Service.GetPublicByEvent(showID)
+	if err != nil {
+		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{"success": true, "data": bookedSeats})
+}
+
+func (c *BookedSeatController) GetMine(ctx *fiber.Ctx) error {
+	showID := ctx.Query("show_id")
+	if showID == "" {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "show_id wajib diisi",
+		})
+	}
+
+	ticketID, ok := ctx.Locals("ticket_id").(string)
+	if !ok || ticketID == "" {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Unauthorized",
+		})
+	}
+
+	bookedSeat, err := c.Service.GetByTicket(showID, ticketID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ctx.JSON(fiber.Map{"success": true, "data": nil})
+	}
+	if err != nil {
+		return ctx.Status(500).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{"success": true, "data": bookedSeat})
 }
 
 func (c *BookedSeatController) GetByID(ctx *fiber.Ctx) error {
@@ -138,7 +183,7 @@ func (c *BookedSeatController) UpsertBookedSeats(ctx *fiber.Ctx) error {
 		seatCopy := seat
 
 		go func(s models.BookedSeat) {
-			payload, err := json.Marshal(s)
+			payload, err := json.Marshal(publicBookedSeatPayload(s))
 			if err != nil {
 				// Optional: log error encoding
 				return
@@ -164,10 +209,8 @@ func (c *BookedSeatController) UpsertBookedSeats(ctx *fiber.Ctx) error {
 // ConfirmBooking permanently books a locked seat for a ticket user
 func (c *BookedSeatController) ConfirmBooking(ctx *fiber.Ctx) error {
 	type Request struct {
-		EventID  string `json:"event_id"`
-		SeatID   string `json:"seat_id"`
-		TicketID string `json:"ticket_id"`
-		Name     string `json:"name"`
+		EventID string `json:"event_id"`
+		SeatID  string `json:"seat_id"`
 	}
 
 	var req Request
@@ -178,8 +221,15 @@ func (c *BookedSeatController) ConfirmBooking(ctx *fiber.Ctx) error {
 		})
 	}
 
-	// In user flow, context is background. In real app, you might want timeout context.
-	seat, err := c.Service.ConfirmBooking(ctx.Context(), req.EventID, req.SeatID, req.TicketID, req.Name)
+	ticketID, ok := ctx.Locals("ticket_id").(string)
+	if !ok || ticketID == "" {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Unauthorized",
+		})
+	}
+
+	seat, err := c.Service.ConfirmBooking(ctx.Context(), req.EventID, req.SeatID, ticketID)
 	if err != nil {
 		return ctx.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"success": false,
@@ -189,7 +239,7 @@ func (c *BookedSeatController) ConfirmBooking(ctx *fiber.Ctx) error {
 
 	// Broadcast the permanent booking
 	go func() {
-		payload, err := json.Marshal(seat)
+		payload, err := json.Marshal(publicBookedSeatPayload(*seat))
 		if err != nil {
 			return
 		}

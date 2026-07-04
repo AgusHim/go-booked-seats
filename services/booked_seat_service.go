@@ -19,6 +19,14 @@ func (s *BookedSeatService) GetAll(showID string) ([]models.BookedSeat, error) {
 	return s.Repo.FindAll(showID)
 }
 
+func (s *BookedSeatService) GetPublicByEvent(showID string) ([]repositories.PublicBookedSeat, error) {
+	return s.Repo.FindPublicByEvent(showID)
+}
+
+func (s *BookedSeatService) GetByTicket(eventID string, ticketID string) (*models.BookedSeat, error) {
+	return s.Repo.FindByTicket(eventID, ticketID)
+}
+
 func (s *BookedSeatService) GetByID(id string) (*models.BookedSeat, error) {
 	return s.Repo.FindByID(id)
 }
@@ -50,6 +58,6 @@ func (s *BookedSeatService) UpsertBookedSeats(seats []models.BookedSeat) ([]mode
 	return s.Repo.UpsertBookedSeats(seats)
 }
 
-func (s *BookedSeatService) ConfirmBooking(ctx context.Context, eventID string, seatID string, ticketID string, name string) (*models.BookedSeat, error) {
-	return s.Repo.ConfirmBooking(ctx, eventID, seatID, ticketID, name)
+func (s *BookedSeatService) ConfirmBooking(ctx context.Context, eventID string, seatID string, ticketID string) (*models.BookedSeat, error) {
+	return s.Repo.ConfirmBooking(ctx, eventID, seatID, ticketID)
 }

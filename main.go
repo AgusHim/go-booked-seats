@@ -6,6 +6,7 @@ import (
 	"go-ticketing/config"
 	"go-ticketing/models"
 	"go-ticketing/routes"
+	"go-ticketing/utils"
 	ws "go-ticketing/websocket"
 	"log"
 	"os"
@@ -19,13 +20,25 @@ import (
 
 func main() {
 	_ = godotenv.Load(".env")
-	app := fiber.New()
-	app.Use(cors.New())
+	if _, err := utils.JWTSecret(); err != nil {
+		log.Fatalf("Invalid JWT configuration: %v", err)
+	}
+
+	app := fiber.New(fiber.Config{
+		BodyLimit: 5 * 1024 * 1024,
+	})
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     allowedOrigins(),
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: false,
+	}))
 	db := config.ConnectDatabase()
 
 	redisUrl := os.Getenv("REDIS_URL")
 	rdb := redis.NewClient(&redis.Options{
-		Addr: redisUrl,
+		Addr:     redisUrl,
+		Password: os.Getenv("REDIS_PASSWORD"),
 	})
 
 	if rdb == nil {
@@ -38,7 +51,9 @@ func main() {
 	}
 
 	// Enable keyspace events for expired keys
-	rdb.ConfigSet(context.Background(), "notify-keyspace-events", "Ex")
+	if err := rdb.ConfigSet(context.Background(), "notify-keyspace-events", "Ex").Err(); err != nil {
+		log.Printf("Failed to configure Redis keyspace events: %v", err)
+	}
 
 	// Start a background worker to listen for expired locks
 	go func() {
@@ -66,9 +81,19 @@ func main() {
 		}
 	}()
 
-	db.AutoMigrate(&models.Event{}, &models.Seat{}, &models.BookedSeat{}, &models.User{}, &models.Ticket{}) // Ini akan buat file data.db otomatis
+	if err := db.AutoMigrate(&models.Event{}, &models.Seat{}, &models.BookedSeat{}, &models.User{}, &models.Ticket{}); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
 
 	routes.RegisterRoutes(app, db, rdb)
 
 	log.Fatal(app.Listen(":3000"))
+}
+
+func allowedOrigins() string {
+	origins := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	if origins != "" {
+		return origins
+	}
+	return "http://127.0.0.1:5173,http://localhost:5173"
 }

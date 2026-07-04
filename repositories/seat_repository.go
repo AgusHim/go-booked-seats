@@ -18,7 +18,7 @@ type SeatRepository interface {
 	Create(seat models.Seat) error
 	Update(seat models.Seat) error
 	Delete(id string) error
-	LockSeat(ctx context.Context, showID string, seatID string, userID string, action string) (string, error)
+	LockSeat(ctx context.Context, showID string, seatID string, ownerID string, action string, isAdmin bool) (string, error)
 	GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error)
 	SaveBulkLayout(seats []models.Seat) error
 }
@@ -98,86 +98,204 @@ func (r *seatRepository) Delete(id string) error {
 	return err
 }
 
-func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID string, userID string, action string) (string, error) {
-	key := fmt.Sprintf("seat_lock:%s:%s", showID, seatID)
-
-	isAdmin := false
-	var user models.User
-	if err := r.db.Where("id = ?", userID).First(&user).Error; err == nil {
-		if user.Role == "admin" {
-			isAdmin = true
-		}
+func (r *seatRepository) LockSeat(ctx context.Context, showID string, seatID string, ownerID string, action string, isAdmin bool) (string, error) {
+	if showID == "" || seatID == "" || ownerID == "" {
+		return "error", fmt.Errorf("event_id, seat_id, and owner are required")
 	}
 
-	userLockKey := fmt.Sprintf("user_lock:%s:%s", showID, userID)
-
-	if !isAdmin {
-		// Check if user already has a permanently booked seat
-		var count int64
-		r.db.Model(&models.BookedSeat{}).Where("ticket_id = ?", userID).Count(&count)
-		if count > 0 {
-			return "error", fmt.Errorf("anda sudah memiliki kursi yang dipesan secara permanen")
-		}
-
-		// Check if user already locked a different seat
-		existingSeat, err := r.rdb.Get(ctx, userLockKey).Result()
-		if err == nil && existingSeat != seatID {
-			return "taken", fmt.Errorf("anda sudah mengunci kursi lain")
-		}
+	eventID, err := r.validateSeatLock(showID, seatID, ownerID, isAdmin)
+	if err != nil {
+		return "error", err
 	}
 
+	key := fmt.Sprintf("seat_lock:%s:%s", eventID, seatID)
+	userLockKey := fmt.Sprintf("user_lock:%s:%s", eventID, ownerID)
+	ttl := 5 * time.Minute
+
+	if isAdmin {
+		return r.lockSeatForAdmin(ctx, key, ownerID, action, ttl)
+	}
+
+	return r.lockSeatForTicket(ctx, key, userLockKey, seatID, ownerID, action, ttl)
+}
+
+func (r *seatRepository) validateSeatLock(eventID string, seatID string, ownerID string, isAdmin bool) (string, error) {
+	var event models.Event
+	if err := r.db.First(&event, "id = ? OR slug = ?", eventID, eventID).Error; err != nil {
+		return "", fmt.Errorf("event tidak ditemukan")
+	}
+	if !strings.EqualFold(event.Status, "active") {
+		return "", fmt.Errorf("event tidak aktif")
+	}
+
+	var seat models.Seat
+	if err := r.db.First(&seat, "id = ? AND event_id = ?", seatID, event.ID).Error; err != nil {
+		return "", fmt.Errorf("kursi tidak ditemukan untuk event ini")
+	}
+	if strings.EqualFold(seat.Category, "STAGE") {
+		return "", fmt.Errorf("area ini tidak dapat dipilih")
+	}
+
+	var bookedCount int64
+	if err := r.db.Model(&models.BookedSeat{}).
+		Where("event_id = ? AND seat_id = ?", event.ID, seatID).
+		Count(&bookedCount).Error; err != nil {
+		return "", err
+	}
+	if bookedCount > 0 {
+		return "", fmt.Errorf("kursi sudah dibooking")
+	}
+
+	if isAdmin {
+		return event.ID, nil
+	}
+
+	if event.WarStartDate != nil && time.Now().Before(*event.WarStartDate) {
+		return "", fmt.Errorf("war kursi belum dimulai")
+	}
+
+	var ticket models.Ticket
+	if err := r.db.First(&ticket, "id = ? AND event_id = ?", ownerID, event.ID).Error; err != nil {
+		return "", fmt.Errorf("tiket tidak valid untuk event ini")
+	}
+
+	var ticketBookedCount int64
+	if err := r.db.Model(&models.BookedSeat{}).
+		Where("event_id = ? AND ticket_id = ?", event.ID, ownerID).
+		Count(&ticketBookedCount).Error; err != nil {
+		return "", err
+	}
+	if ticketBookedCount > 0 {
+		return "", fmt.Errorf("tiket ini sudah memiliki kursi")
+	}
+
+	if !seatGenderAllowed(ticket.Gender, seat.Gender) {
+		return "", fmt.Errorf("kursi ini tidak sesuai gender tiket")
+	}
+	if !seatCategoryAllowed(ticket.Category, seat.Category) {
+		return "", fmt.Errorf("kursi ini tidak sesuai kategori tiket")
+	}
+
+	return event.ID, nil
+}
+
+func (r *seatRepository) lockSeatForAdmin(ctx context.Context, key string, ownerID string, action string, ttl time.Duration) (string, error) {
 	currentOwner, err := r.rdb.Get(ctx, key).Result()
-
 	if action == "unlock" {
-		if err == nil && currentOwner == userID {
-			r.rdb.Del(ctx, key)
-			if !isAdmin {
-				r.rdb.Del(ctx, userLockKey)
-			}
+		if err == nil && currentOwner == ownerID {
+			return "unlocked", r.rdb.Del(ctx, key).Err()
 		}
 		return "unlocked", nil
 	}
-
 	if err == redis.Nil {
-		// Key belum ada → bisa lock (TTL 5 menit untuk war kursi)
-		ok, err := r.rdb.SetNX(ctx, key, userID, 5*time.Minute).Result()
+		ok, err := r.rdb.SetNX(ctx, key, ownerID, ttl).Result()
 		if err != nil {
 			return "error", err
 		}
 		if ok {
-			if !isAdmin {
-				r.rdb.Set(ctx, userLockKey, seatID, 5*time.Minute)
-			}
-			return "locked", nil // sukses lock
+			return "locked", nil
 		}
-		return "error", nil // gagal lock tanpa sebab
-	} else if err != nil {
+		return "taken", nil
+	}
+	if err != nil {
 		return "error", err
 	}
-
-	// Kursi sudah di-lock
-	if currentOwner == userID {
-		// User yang sama → lepaskan lock
-		err := r.rdb.Del(ctx, key).Err()
-		if err != nil {
-			return "error", err
-		}
-		if !isAdmin {
-			r.rdb.Del(ctx, userLockKey)
-		}
-		return "unlocked", nil
+	if currentOwner == ownerID {
+		return "locked", nil
 	}
-
-	// Kursi di-lock user lain
 	return "taken", nil
 }
 
+func (r *seatRepository) lockSeatForTicket(ctx context.Context, seatKey string, userLockKey string, seatID string, ownerID string, action string, ttl time.Duration) (string, error) {
+	const script = `
+local seatKey = KEYS[1]
+local userLockKey = KEYS[2]
+local seatID = ARGV[1]
+local ownerID = ARGV[2]
+local action = ARGV[3]
+local ttlMs = tonumber(ARGV[4])
+
+local currentOwner = redis.call("GET", seatKey)
+if action == "unlock" then
+	if currentOwner == ownerID then
+		redis.call("DEL", seatKey)
+		redis.call("DEL", userLockKey)
+	end
+	return "unlocked"
+end
+
+if currentOwner then
+	if currentOwner == ownerID then
+		redis.call("PEXPIRE", seatKey, ttlMs)
+		redis.call("SET", userLockKey, seatID, "PX", ttlMs)
+		return "locked"
+	end
+	return "taken"
+end
+
+local existingSeat = redis.call("GET", userLockKey)
+if existingSeat and existingSeat ~= seatID then
+	return "taken"
+end
+
+local ok = redis.call("SET", seatKey, ownerID, "PX", ttlMs, "NX")
+if ok then
+	redis.call("SET", userLockKey, seatID, "PX", ttlMs)
+	return "locked"
+end
+return "taken"
+`
+	status, err := r.rdb.Eval(ctx, script, []string{seatKey, userLockKey}, seatID, ownerID, action, ttl.Milliseconds()).Text()
+	if err != nil {
+		return "error", err
+	}
+	return status, nil
+}
+
+func seatCategoryAllowed(ticketCategory string, seatCategory string) bool {
+	if strings.EqualFold(seatCategory, "STAGE") {
+		return false
+	}
+	if strings.TrimSpace(ticketCategory) == "" || strings.TrimSpace(seatCategory) == "" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(ticketCategory), strings.TrimSpace(seatCategory))
+}
+
+func seatGenderAllowed(ticketGender string, seatGender string) bool {
+	seat := normalizeGender(seatGender)
+	if seat == "" || seat == "both" {
+		return true
+	}
+	return normalizeGender(ticketGender) == seat
+}
+
+func normalizeGender(gender string) string {
+	value := strings.ToLower(strings.TrimSpace(gender))
+	switch value {
+	case "", "both", "all", "semua":
+		return "both"
+	case "male", "m", "l", "laki-laki", "laki laki", "pria":
+		return "male"
+	case "female", "f", "p", "perempuan", "wanita":
+		return "female"
+	default:
+		return value
+	}
+}
+
 func (r *seatRepository) GetLockedSeats(ctx context.Context, showID string) ([]*models.BookedSeat, error) {
+	scanEventID := showID
+	var event models.Event
+	if showID != "" && r.db.First(&event, "id = ? OR slug = ?", showID, showID).Error == nil {
+		scanEventID = event.ID
+	}
+
 	cursor := uint64(0)
 	var locked []*models.BookedSeat
 
 	for {
-		keys, nextCursor, err := r.rdb.Scan(ctx, cursor, fmt.Sprintf("seat_lock:%s:*", showID), 100).Result()
+		keys, nextCursor, err := r.rdb.Scan(ctx, cursor, fmt.Sprintf("seat_lock:%s:*", scanEventID), 100).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -190,11 +308,11 @@ func (r *seatRepository) GetLockedSeats(ctx context.Context, showID string) ([]*
 					show := parts[1]
 					seatID := parts[2]
 					seat := &models.BookedSeat{
-					ID:      key,
-					EventID: show,
-					SeatID:  seatID,
-					AdminID: val,
-				}
+						ID:      key,
+						EventID: show,
+						SeatID:  seatID,
+						AdminID: val,
+					}
 					locked = append(locked, seat)
 				}
 			}

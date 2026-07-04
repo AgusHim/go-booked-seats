@@ -78,7 +78,6 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 	type Request struct {
 		EventID string `json:"show_id"`
 		SeatID  string `json:"seat_id"`
-		AdminID string `json:"admin_id"`
 		Action  string `json:"action"`
 	}
 	var body Request
@@ -89,9 +88,17 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 		})
 	}
 
-	status, err := ctl.seatService.TryLockSeat(context.Background(), body.EventID, body.SeatID, body.AdminID, body.Action)
+	ownerID, isAdmin, ok := lockOwnerFromContext(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Unauthorized",
+		})
+	}
+
+	status, err := ctl.seatService.TryLockSeat(context.Background(), body.EventID, body.SeatID, ownerID, body.Action, isAdmin)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"success": false,
 			"message": "Failed to lock seat",
 			"error":   err.Error(),
@@ -99,7 +106,11 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 	}
 
 	if status == "locked" || status == "unlocked" {
-		payload, _ := json.Marshal(body)
+		payload, _ := json.Marshal(map[string]string{
+			"show_id":  body.EventID,
+			"seat_id":  body.SeatID,
+			"admin_id": ownerID,
+		})
 
 		msg := models.Message{
 			Type:     fmt.Sprintf("seat_%s", status),
@@ -120,7 +131,11 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 	if status == "taken" || status == "error" {
 		res_data = nil
 	} else {
-		res_data = &body
+		res_data = &Request{
+			EventID: body.EventID,
+			SeatID:  body.SeatID,
+			Action:  body.Action,
+		}
 	}
 	return c.JSON(fiber.Map{
 		"success": status != "error",
@@ -128,6 +143,16 @@ func (ctl *SeatController) LockSeat(c *fiber.Ctx) error {
 		"status":  status,
 		"data":    res_data,
 	})
+}
+
+func lockOwnerFromContext(c *fiber.Ctx) (string, bool, bool) {
+	if ticketID, ok := c.Locals("ticket_id").(string); ok && ticketID != "" {
+		return ticketID, false, true
+	}
+	if userID, ok := c.Locals("user_id").(string); ok && userID != "" {
+		return userID, true, true
+	}
+	return "", false, false
 }
 
 func (ctl *SeatController) GetLockedSeats(c *fiber.Ctx) error {
