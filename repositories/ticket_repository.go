@@ -72,11 +72,22 @@ func (r *ticketRepository) FindByID(id string) (*models.Ticket, error) {
 
 func (r *ticketRepository) FindByTicketCode(ticketCode string) (*models.Ticket, error) {
 	var ticket models.Ticket
-	err := r.db.Where("ticket_code = ?", ticketCode).First(&ticket).Error
+	lookup := normalizeTicketLookup(ticketCode)
+	err := r.db.Where(
+		"UPPER(TRIM(ticket_code)) = ? OR UPPER(TRIM(ext_ticket_id)) = ?",
+		lookup,
+		lookup,
+	).First(&ticket).Error
 	if err != nil {
 		return nil, err
 	}
 	return &ticket, nil
+}
+
+func normalizeTicketLookup(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, "[]")
+	return strings.ToUpper(strings.TrimSpace(value))
 }
 
 func (r *ticketRepository) ToggleGoodieBag(id string) (*models.Ticket, error) {

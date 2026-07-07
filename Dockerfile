@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -20,7 +20,7 @@ COPY . .
 RUN go build -o main .
 
 # Stage 2: Runtime
-FROM alpine:latest  
+FROM alpine:3.22
 
 # Set working directory in container
 WORKDIR /root/
