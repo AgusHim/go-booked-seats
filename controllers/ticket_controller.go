@@ -123,3 +123,21 @@ func (c *TicketController) ToggleGoodieBag(ctx *fiber.Ctx) error {
 	}
 	return ctx.JSON(fiber.Map{"success": true, "data": ticket, "message": "Goodie bag status updated"})
 }
+
+func (c *TicketController) MarkGoodieBagsClaimed(ctx *fiber.Ctx) error {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := ctx.BodyParser(&body); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	if len(body.IDs) == 0 {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Ticket ids are required"})
+	}
+
+	tickets, err := c.service.MarkGoodieBagsClaimed(body.IDs)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{"success": true, "data": tickets, "message": "Goodie bags marked as claimed"})
+}

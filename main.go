@@ -81,7 +81,7 @@ func main() {
 		}
 	}()
 
-	if err := db.AutoMigrate(&models.Event{}, &models.Seat{}, &models.BookedSeat{}, &models.User{}, &models.Ticket{}); err != nil {
+	if err := db.AutoMigrate(&models.Event{}, &models.Seat{}, &models.BookedSeat{}, &models.User{}, &models.Ticket{}, &models.Setting{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 

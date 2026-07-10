@@ -2,11 +2,18 @@
 package services
 
 import (
+	"bytes"
 	"encoding/csv"
+	"encoding/json"
+	"fmt"
 	"go-ticketing/models"
 	"go-ticketing/repositories"
 	"io"
+	"log"
 	"mime/multipart"
+	"net/http"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -20,14 +27,20 @@ type TicketService interface {
 	ImportFromCSV(file multipart.File) error
 	VerifyTicketCode(ticketCode string) (*models.Ticket, error)
 	ToggleGoodieBag(id string) (*models.Ticket, error)
+	MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error)
 }
 
 type ticketService struct {
-	repo repositories.TicketRepository
+	repo        repositories.TicketRepository
+	settingRepo repositories.SettingRepository
 }
 
-func NewTicketService(repo repositories.TicketRepository) TicketService {
-	return &ticketService{repo}
+func NewTicketService(repo repositories.TicketRepository, settingRepo ...repositories.SettingRepository) TicketService {
+	var settings repositories.SettingRepository
+	if len(settingRepo) > 0 {
+		settings = settingRepo[0]
+	}
+	return &ticketService{repo: repo, settingRepo: settings}
 }
 
 func (s *ticketService) Create(ticket *models.Ticket) error {
@@ -93,5 +106,153 @@ func (s *ticketService) VerifyTicketCode(ticketCode string) (*models.Ticket, err
 }
 
 func (s *ticketService) ToggleGoodieBag(id string) (*models.Ticket, error) {
-	return s.repo.ToggleGoodieBag(id)
+	ticket, err := s.repo.ToggleGoodieBag(id)
+	if err != nil {
+		return nil, err
+	}
+	if ticket.GoodieBagClaimed {
+		s.scanDarisiniAsync(*ticket)
+	}
+	return ticket, nil
+}
+
+func (s *ticketService) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error) {
+	tickets, err := s.repo.MarkGoodieBagsClaimed(ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, ticket := range tickets {
+		s.scanDarisiniAsync(ticket)
+	}
+	return tickets, nil
+}
+
+const validateUserTicketQuery = `query useEventScannerValidateUserTicketQuery(
+  $eventScannerId: ID!
+  $password: String!
+  $publicId: String!
+) {
+  eventScannerValidateUserTicket(eventScannerId: $eventScannerId, password: $password, publicId: $publicId) {
+    success
+    error {
+      code
+      message
+      ticketName
+      eventTitle
+      eventShortUrl
+    }
+    data {
+      publicId
+      orderUserEmail
+      orderUserFullName
+      ownerUserEmail
+      ownerUserFullName
+      ownerUserGender
+      ticket {
+        name
+        eventTitle
+        eventStartDate
+      }
+      attendance {
+        decodedId
+        attendedAt
+        scannerUserFullName
+        notes
+        attachmentUrl
+      }
+      maximumScan
+      currentScanCount
+    }
+  }
+}
+`
+
+func (s *ticketService) scanDarisiniAsync(ticket models.Ticket) {
+	if s.settingRepo == nil {
+		return
+	}
+
+	go func() {
+		if err := s.repo.UpdateDarisiniScanLog(ticket.ID, "pending", "Scan Darisini queued", time.Now()); err != nil {
+			log.Printf("failed to update darisini pending scan log for ticket %s: %v", ticket.ID, err)
+		}
+		status, response := s.scanDarisini(ticket)
+		if err := s.repo.UpdateDarisiniScanLog(ticket.ID, status, response, time.Now()); err != nil {
+			log.Printf("failed to update darisini scan log for ticket %s: %v", ticket.ID, err)
+		}
+	}()
+}
+
+func (s *ticketService) scanDarisini(ticket models.Ticket) (string, string) {
+	cookie, err := s.getDarisiniCookie()
+	if err != nil {
+		return "failed", err.Error()
+	}
+	if strings.TrimSpace(cookie) == "" {
+		return "skipped", "Darisini cookie is empty"
+	}
+
+	publicID := strings.TrimSpace(ticket.TicketCode)
+	if publicID == "" {
+		publicID = strings.TrimSpace(ticket.ExtTicketID)
+	}
+	if publicID == "" {
+		return "skipped", "Ticket code is empty"
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"query": validateUserTicketQuery,
+		"variables": map[string]interface{}{
+			"eventScannerId": nil,
+			"password":       nil,
+			"publicId":       publicID,
+		},
+	})
+	if err != nil {
+		return "failed", err.Error()
+	}
+
+	req, err := http.NewRequest("POST", "https://scanner.darisini.com/api/graphql", bytes.NewBuffer(payload))
+	if err != nil {
+		return "failed", err.Error()
+	}
+
+	req.Header.Set("sec-ch-ua-platform", `"Android"`)
+	req.Header.Set("origin", "https://scanner.darisini.com")
+	req.Header.Set("Referer", "https://scanner.darisini.com/v2/presence")
+	req.Header.Set("sec-ch-ua", `"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"`)
+	req.Header.Set("Cookie", cookie)
+	req.Header.Set("sec-ch-ua-mobile", "?1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36")
+	req.Header.Set("Accept", "application/graphql-response+json; charset=utf-8, application/json; charset=utf-8")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "failed", err.Error()
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "failed", err.Error()
+	}
+
+	response := fmt.Sprintf("HTTP %s: %s", resp.Status, string(body))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "failed", response
+	}
+	if strings.Contains(string(body), `"success":true`) {
+		return "success", response
+	}
+	return "completed", response
+}
+
+func (s *ticketService) getDarisiniCookie() (string, error) {
+	setting, err := s.settingRepo.Get(darisiniCookieSettingKey)
+	if err != nil || setting == nil {
+		return "", err
+	}
+	return setting.Value, nil
 }

@@ -33,7 +33,10 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	seatController := controllers.NewSeatController(seatService, ws)
 
 	ticketRepo := repositories.NewTicketRepository(db)
-	ticketService := services.NewTicketService(ticketRepo)
+	settingRepo := repositories.NewSettingRepository(db)
+	settingService := services.NewSettingService(settingRepo)
+	settingController := controllers.NewSettingController(settingService)
+	ticketService := services.NewTicketService(ticketRepo, settingRepo)
 	ticketController := controllers.NewTicketController(ticketService)
 
 	dashboardRepo := repositories.NewDashboardRepository(db)
@@ -89,8 +92,11 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	admin_api.Post("/tickets", ticketController.Create)
 	admin_api.Put("/tickets/:id", ticketController.Update)
 	admin_api.Delete("/tickets/:id", ticketController.Delete)
+	admin_api.Post("/tickets/goodie-bags/claim", ticketController.MarkGoodieBagsClaimed)
 	admin_api.Post("/tickets/:id/goodie-bag", ticketController.ToggleGoodieBag)
 	admin_api.Post("/seats/layout", seatController.SaveBulkLayout)
+	admin_api.Get("/settings/darisini", settingController.GetDarisini)
+	admin_api.Put("/settings/darisini", settingController.UpdateDarisini)
 
 	importController := controllers.NewImportController(db)
 	admin_api.Post("/import-excel", importController.UploadExcel)

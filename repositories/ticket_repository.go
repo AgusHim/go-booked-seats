@@ -4,6 +4,7 @@ package repositories
 import (
 	"go-ticketing/models"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -14,6 +15,8 @@ type TicketRepository interface {
 	FindByID(id string) (*models.Ticket, error)
 	FindByTicketCode(ticketCode string) (*models.Ticket, error)
 	ToggleGoodieBag(id string) (*models.Ticket, error)
+	MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error)
+	UpdateDarisiniScanLog(id string, status string, response string, scannedAt time.Time) error
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
 }
@@ -100,6 +103,33 @@ func (r *ticketRepository) ToggleGoodieBag(id string) (*models.Ticket, error) {
 		return nil, err
 	}
 	return &ticket, nil
+}
+
+func (r *ticketRepository) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error) {
+	if len(ids) == 0 {
+		return []models.Ticket{}, nil
+	}
+
+	err := r.db.Model(&models.Ticket{}).
+		Where("id IN ?", ids).
+		Update("goodie_bag_claimed", true).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var tickets []models.Ticket
+	err = r.db.Preload("Event").Where("id IN ?", ids).Find(&tickets).Error
+	return tickets, err
+}
+
+func (r *ticketRepository) UpdateDarisiniScanLog(id string, status string, response string, scannedAt time.Time) error {
+	return r.db.Model(&models.Ticket{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"darisini_scan_status":   status,
+			"darisini_scan_response": response,
+			"darisini_scanned_at":    scannedAt,
+		}).Error
 }
 
 func (r *ticketRepository) Update(ticket *models.Ticket) error {
