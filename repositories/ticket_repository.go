@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TicketRepository interface {
@@ -15,7 +16,7 @@ type TicketRepository interface {
 	FindByID(id string) (*models.Ticket, error)
 	FindByTicketCode(ticketCode string) (*models.Ticket, error)
 	ToggleGoodieBag(id string) (*models.Ticket, error)
-	MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error)
+	MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, []models.Ticket, error)
 	UpdateDarisiniScanLog(id string, status string, response string, scannedAt time.Time) error
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
@@ -105,21 +106,33 @@ func (r *ticketRepository) ToggleGoodieBag(id string) (*models.Ticket, error) {
 	return &ticket, nil
 }
 
-func (r *ticketRepository) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error) {
+func (r *ticketRepository) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, []models.Ticket, error) {
 	if len(ids) == 0 {
-		return []models.Ticket{}, nil
-	}
-
-	err := r.db.Model(&models.Ticket{}).
-		Where("id IN ?", ids).
-		Update("goodie_bag_claimed", true).Error
-	if err != nil {
-		return nil, err
+		return []models.Ticket{}, []models.Ticket{}, nil
 	}
 
 	var tickets []models.Ticket
-	err = r.db.Preload("Event").Where("id IN ?", ids).Find(&tickets).Error
-	return tickets, err
+	var newlyClaimed []models.Ticket
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&newlyClaimed).
+			Clauses(clause.Returning{}).
+			Where("id IN ? AND goodie_bag_claimed = ?", ids, false).
+			Updates(map[string]interface{}{
+				"goodie_bag_claimed":     true,
+				"darisini_scan_status":   "pending",
+				"darisini_scan_response": "Scan Darisini queued",
+			}).Error; err != nil {
+			return err
+		}
+
+		return tx.Preload("Event").Where("id IN ?", ids).Find(&tickets).Error
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return tickets, newlyClaimed, nil
 }
 
 func (r *ticketRepository) UpdateDarisiniScanLog(id string, status string, response string, scannedAt time.Time) error {

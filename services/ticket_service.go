@@ -117,11 +117,11 @@ func (s *ticketService) ToggleGoodieBag(id string) (*models.Ticket, error) {
 }
 
 func (s *ticketService) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error) {
-	tickets, err := s.repo.MarkGoodieBagsClaimed(ids)
+	tickets, newlyClaimed, err := s.repo.MarkGoodieBagsClaimed(ids)
 	if err != nil {
 		return nil, err
 	}
-	for _, ticket := range tickets {
+	for _, ticket := range newlyClaimed {
 		s.scanDarisiniAsync(ticket)
 	}
 	return tickets, nil
