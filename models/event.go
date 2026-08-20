@@ -10,21 +10,22 @@ import (
 )
 
 type Event struct {
-	ID             string     `json:"id" gorm:"primaryKey;type:uuid"`
-	Slug           string     `json:"slug" gorm:"uniqueIndex"`
-	Name           string     `json:"name" validate:"required"`
-	Date           time.Time  `json:"date" validate:"required"`
-	Location       string     `json:"location" validate:"required"`
-	Description    string     `json:"description" gorm:"type:text"`
-	Status         string     `json:"status" validate:"required"`
-	ImageURL       string     `json:"image_url" gorm:"type:text"`
-	Color          string     `json:"color"`
-	EventScannerID string     `json:"event_scanner_id"`
-	Seats          []Seat     `json:"seats,omitempty" gorm:"foreignKey:EventID"`
-	Tickets        []Ticket   `json:"tickets,omitempty" gorm:"foreignKey:EventID"`
-	WarStartDate   *time.Time `json:"war_start_date"`
-	CreatedAt      time.Time  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt      time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                       string     `json:"id" gorm:"primaryKey;type:uuid"`
+	Slug                     string     `json:"slug" gorm:"uniqueIndex"`
+	Name                     string     `json:"name" validate:"required"`
+	Date                     time.Time  `json:"date" validate:"required"`
+	Location                 string     `json:"location" validate:"required"`
+	Description              string     `json:"description" gorm:"type:text"`
+	Status                   string     `json:"status" validate:"required"`
+	ImageURL                 string     `json:"image_url" gorm:"type:text"`
+	Color                    string     `json:"color"`
+	EventScannerID           string     `json:"event_scanner_id"`
+	EventScannerUserFullName string     `json:"event_scanner_user_full_name"`
+	Seats                    []Seat     `json:"seats,omitempty" gorm:"foreignKey:EventID"`
+	Tickets                  []Ticket   `json:"tickets,omitempty" gorm:"foreignKey:EventID"`
+	WarStartDate             *time.Time `json:"war_start_date"`
+	CreatedAt                time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt                time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 func (e *Event) BeforeCreate(tx *gorm.DB) (err error) {

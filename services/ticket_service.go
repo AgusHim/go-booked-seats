@@ -172,6 +172,9 @@ func (s *ticketService) scanDarisini(ticket models.Ticket) (string, string) {
 	if ticket.Event == nil || strings.TrimSpace(ticket.Event.EventScannerID) == "" {
 		return "skipped", "Event Scanner ID is empty"
 	}
+	if strings.TrimSpace(ticket.Event.EventScannerUserFullName) == "" {
+		return "skipped", "Event Scanner user full name is empty"
+	}
 
 	payload, err := json.Marshal(map[string]interface{}{
 		"query": createEventAttendanceMutation,
@@ -180,8 +183,8 @@ func (s *ticketService) scanDarisini(ticket models.Ticket) (string, string) {
 				"publicId":            publicID,
 				"eventScannerId":      strings.TrimSpace(ticket.Event.EventScannerID),
 				"identityMatch":       "Ticket matches identity",
-				"scannerUserFullName": "Go Ticketing Admin",
-				"notes":               "",
+				"scannerUserFullName": strings.TrimSpace(ticket.Event.EventScannerUserFullName),
+				"notes":               "Sudah ambil goodiebag",
 			},
 		},
 	})

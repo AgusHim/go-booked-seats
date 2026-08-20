@@ -18,3 +18,21 @@ curl 'https://scanner.darisini.com/api/graphql' \
 -H 'Priority: u=3, i' \
 --data-raw '{"query":"mutation useEventScannerCreateEventAttendanceMutation(\n  $input: EventScannerCreateEventAttendanceInput!\n) {\n  eventScannerCreateEventAttendance(input: $input) {\n    id\n    decodedId\n  }\n}\n","variables":{"input":{"publicId":"MLV8K7QP","eventScannerId":"cmt12rzyl013js601r4p5kwj5","identityMatch":"Ticket matches identity","scannerUserFullName":"Rijal","notes":""}}}'
 
+
+fetch("https://scanner.darisini.com/api/graphql", {
+    "body": "{\"query\":\"mutation useEventScannerCreateEventAttendanceMutation(\\n  $input: EventScannerCreateEventAttendanceInput!\\n) {\\n  eventScannerCreateEventAttendance(input: $input) {\\n    id\\n    decodedId\\n  }\\n}\\n\",\"variables\":{\"input\":{\"publicId\":\"0ZHVCXMT\",\"eventScannerId\":\"cmt12rzyl013js601r4p5kwj5\",\"identityMatch\":\"Ticket matches identity\",\"scannerUserFullName\":\"Rijal\",\"notes\":\"\"}}}",
+    "cache": "default",
+    "credentials": "include",
+    "headers": {
+        "Accept": "application/graphql-response+json; charset=utf-8, application/json; charset=utf-8",
+        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+        "Content-Type": "application/json",
+        "Priority": "u=3, i",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15"
+    },
+    "method": "POST",
+    "mode": "cors",
+    "redirect": "follow",
+    "referrer": "https://scanner.darisini.com/v2/presence",
+    "referrerPolicy": "strict-origin-when-cross-origin"
+})
