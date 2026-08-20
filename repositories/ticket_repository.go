@@ -96,7 +96,7 @@ func normalizeTicketLookup(value string) string {
 
 func (r *ticketRepository) ToggleGoodieBag(id string) (*models.Ticket, error) {
 	var ticket models.Ticket
-	if err := r.db.First(&ticket, "id = ?", id).Error; err != nil {
+	if err := r.db.Preload("Event").First(&ticket, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	ticket.GoodieBagClaimed = !ticket.GoodieBagClaimed
@@ -126,7 +126,18 @@ func (r *ticketRepository) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket,
 			return err
 		}
 
-		return tx.Preload("Event").Where("id IN ?", ids).Find(&tickets).Error
+		if err := tx.Preload("Event").Where("id IN ?", ids).Find(&tickets).Error; err != nil {
+			return err
+		}
+		if len(newlyClaimed) == 0 {
+			return nil
+		}
+
+		newlyClaimedIDs := make([]string, 0, len(newlyClaimed))
+		for _, ticket := range newlyClaimed {
+			newlyClaimedIDs = append(newlyClaimedIDs, ticket.ID)
+		}
+		return tx.Preload("Event").Where("id IN ?", newlyClaimedIDs).Find(&newlyClaimed).Error
 	})
 	if err != nil {
 		return nil, nil, err

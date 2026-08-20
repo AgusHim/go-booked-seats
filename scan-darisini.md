@@ -1,43 +1,20 @@
+ validate ticket dengan enpoint dibawah ini
+
+## Confirm validate ticket
 curl 'https://scanner.darisini.com/api/graphql' \
-  -H 'accept: application/graphql-response+json; charset=utf-8, application/json; charset=utf-8' \
-  -H 'accept-language: en-US,en;q=0.9' \
-  -H 'content-type: application/json' \
-  -b '__Host-next-auth.csrf-token=c8e11305d489a2f96356c8ba9ad6cc1cb80d51a503497c8b75e4f148307b5a76%7C8c90a3c369ea67984062e5d9967388179d21f0b449a612f3b22f703344fded75; __Secure-next-auth.callback-url=https%3A%2F%2Fscanner.darisini.com%2Fv2%2Flogin%3FscannerId%3Dcmrbwhfeb00x5s601wupxujif; __Secure-next-auth.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..tOy6pQ-b8dLRByRe.mrjTq4bsE60ZSCYuMQ8HC3it4GkLYg7cKjxgmBgmSTMFGzs8X5YI-ubsSghieYjiCpSS0l2FqiObJ2pIMFO_uZmW3pZodFGpWGSbunsfflzXjPJfJr-0HOHA9u20pT8q5PoeoKNqyq9vb4rYk5JFbug6WQzrl-y9kZpOE4GJNBrVoRNlowOt0J0cHYiuzik0U7qsg5QYNqqx8mVV1FKnywsA5T-IyG9wEdQ8BfNJgIigyYG008IyZ2LUnb49bULS9TTSCmi6pe87wpyF_uj7NB8g5ZAfBcmNzwZl2N43sdtXWHsCF8VpuJFv3qWYqHkayV9NpYLJNwFZXwYgcJFClU1Gpd0db7RtRaNnyKBOy2nOT08V01Z8MgwP9a9Y6gM.boRW9LFjLwvKkkDx5NsobQ' \
-  -H 'origin: https://scanner.darisini.com' \
-  -H 'priority: u=1, i' \
-  -H 'referer: https://scanner.darisini.com/v2/presence' \
-  -H 'sec-ch-ua: "Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
-  -H 'sec-ch-ua-mobile: ?1' \
-  -H 'sec-ch-ua-platform: "Android"' \
-  -H 'sec-fetch-dest: empty' \
-  -H 'sec-fetch-mode: cors' \
-  -H 'sec-fetch-site: same-origin' \
-  -H 'user-agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36' \
-  --data-raw $'{"query":"query useEventScannerValidateUserTicketQuery(\\n  $eventScannerId: ID\u0021\\n  $password: String\u0021\\n  $publicId: String\u0021\\n) {\\n  eventScannerValidateUserTicket(eventScannerId: $eventScannerId, password: $password, publicId: $publicId) {\\n    success\\n    error {\\n      code\\n      message\\n      ticketName\\n      eventTitle\\n      eventShortUrl\\n    }\\n    data {\\n      publicId\\n      orderUserEmail\\n      orderUserFullName\\n      ownerUserEmail\\n      ownerUserFullName\\n      ownerUserGender\\n      ticket {\\n        name\\n        eventTitle\\n        eventStartDate\\n      }\\n      attendance {\\n        decodedId\\n        attendedAt\\n        scannerUserFullName\\n        notes\\n        attachmentUrl\\n      }\\n      maximumScan\\n      currentScanCount\\n    }\\n  }\\n}\\n","variables":{"eventScannerId":null,"password":null,"publicId":"0ZHVCXMT"}}'
+-X 'POST' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/graphql-response+json; charset=utf-8, application/json; charset=utf-8' \
+-H 'Sec-Fetch-Site: same-origin' \
+-H 'Accept-Language: en-GB,en-US;q=0.9,en;q=0.8' \
+-H 'Accept-Encoding: gzip, deflate, br, zstd' \
+-H 'Sec-Fetch-Mode: cors' \
+-H 'Origin: https://scanner.darisini.com' \
+-H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15' \
+-H 'Referer: https://scanner.darisini.com/v2/presence' \
+-H 'Content-Length: 383' \
+-H 'Sec-Fetch-Dest: empty' \
+-H 'Cookie: __Secure-next-auth.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..rHdx0zhM6BoPzvol.OlUR9i_qcFyrD4NHj3fxV6gxDmNOaSpYTAusiyZd1u5_0DXxybWa5qbk9px9JAp4tFJPWnFeICs3jw2-fUbU0K4f0t6Oq-7MO-f6HCR2vHCgjrsYaZABwnuO2zKtYAAKasMzyrGaupw0_HfldgQqlSyp5jAgn3qoP7ygAx-RtdnQjWh96A7QYAzxEEaMbftQfr0v1CQG380Zag0AWM6ODEsfYqYAoMSXJiPXnQxP-AxOFf_4PT-4NDmioB30Tvu3zyT9ZpZbcjnTgym2OGQ2uhjREFggVOdQ2NJB7xyVWTRTf7ZLjkoeDHZNwVwNVNOtz-IAZR_LECh_JinAwXe4Ihyf5wAZyQDdQmGWDIZ-AZXT_sHevwLtlqaUCgcLJxbM1dM2HA.Ork39Oq-EyrDo35kBt3pNg; __Secure-next-auth.callback-url=https%3A%2F%2Fscanner.darisini.com%2Fv2%2Flogin%3FscannerId%3Dcmt12rzyl013js601r4p5kwj5; __Host-next-auth.csrf-token=776b5941fc516b60be9bbc71d759b952e2bfabccf3b081009c2a2d540e5c1945%7Ca9044a6dd47018df46d745a93e6ce8b03b0e77ef6ef59c1078f88374f9b320b3; _ga_1V8MHJJ0V3=GS2.1.s1771292429$o44$g1$t1771292648$j42$l0$h0; ph_phc_rX96fU8eX4FOrxRG71X0wQ0qTeS3C3X1l7EHl7HRAty_posthog=%7B%22%24device_id%22%3A%22019bafe4-a007-7cc1-8ddb-50529ca56569%22%2C%22distinct_id%22%3A%22019bafe4-a007-7cc1-8ddb-50529ca56569%22%2C%22%24sesid%22%3A%5B1771292648218%2C%22019c6944-e327-791d-92db-385733279e88%22%2C1771292648218%5D%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22https%3A%2F%2Fdarisini.com%2F%22%7D%7D; _ga=GA1.1.2004572984.1768182556' \
+-H 'Priority: u=3, i' \
+--data-raw '{"query":"mutation useEventScannerCreateEventAttendanceMutation(\n  $input: EventScannerCreateEventAttendanceInput!\n) {\n  eventScannerCreateEventAttendance(input: $input) {\n    id\n    decodedId\n  }\n}\n","variables":{"input":{"publicId":"MLV8K7QP","eventScannerId":"cmt12rzyl013js601r4p5kwj5","identityMatch":"Ticket matches identity","scannerUserFullName":"Rijal","notes":""}}}'
 
-
-  Response:
-  {
-    "data": {
-        "eventScannerValidateUserTicket": {
-            "success": true,
-            "error": null,
-            "data": {
-                "publicId": "0ZHVCXMT",
-                "orderUserEmail": "himawan.ags@gmail.com",
-                "orderUserFullName": "Agus Himawan",
-                "ownerUserEmail": "silver4@gmail.com",
-                "ownerUserFullName": "silver4@gmail.com",
-                "ownerUserGender": "MALE",
-                "ticket": {
-                    "name": "Tiket Silver Tribun",
-                    "eventTitle": "Just For Test",
-                    "eventStartDate": "2039-06-16T17:00:00.000Z"
-                },
-                "attendance": null,
-                "maximumScan": 1,
-                "currentScanCount": 0
-            }
-        }
-    }
-}

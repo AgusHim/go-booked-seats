@@ -52,14 +52,18 @@ func TestMarkGoodieBagsClaimedOnlyReturnsNewlyClaimedForScanning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite memory database: %v", err)
 	}
-	if err := db.AutoMigrate(&models.Ticket{}); err != nil {
-		t.Fatalf("failed to migrate tickets: %v", err)
+	if err := db.AutoMigrate(&models.Event{}, &models.Ticket{}); err != nil {
+		t.Fatalf("failed to migrate event and tickets: %v", err)
 	}
 
 	repo := NewTicketRepository(db)
+	event := &models.Event{ID: "event-1", Name: "Scanner Event", EventScannerID: "scanner-123"}
+	if err := db.Create(event).Error; err != nil {
+		t.Fatalf("failed to create event fixture: %v", err)
+	}
 	tickets := []*models.Ticket{
-		{ID: "ticket-1", TicketCode: "TICKET-1", OrderID: "ORDER-1", Name: "Unclaimed"},
-		{ID: "ticket-2", TicketCode: "TICKET-2", OrderID: "ORDER-2", Name: "Already Claimed", GoodieBagClaimed: true},
+		{ID: "ticket-1", TicketCode: "TICKET-1", OrderID: "ORDER-1", Name: "Unclaimed", EventID: event.ID},
+		{ID: "ticket-2", TicketCode: "TICKET-2", OrderID: "ORDER-2", Name: "Already Claimed", GoodieBagClaimed: true, EventID: event.ID},
 	}
 	for _, ticket := range tickets {
 		if err := repo.Create(ticket); err != nil {
@@ -76,6 +80,9 @@ func TestMarkGoodieBagsClaimedOnlyReturnsNewlyClaimedForScanning(t *testing.T) {
 	}
 	if len(newlyClaimed) != 1 || newlyClaimed[0].ID != "ticket-1" {
 		t.Fatalf("expected only ticket-1 to be newly claimed, got %#v", newlyClaimed)
+	}
+	if newlyClaimed[0].Event == nil || newlyClaimed[0].Event.EventScannerID != event.EventScannerID {
+		t.Fatalf("expected newly claimed ticket to include scanner event, got %#v", newlyClaimed[0].Event)
 	}
 
 	_, newlyClaimed, err = repo.MarkGoodieBagsClaimed([]string{"ticket-1", "ticket-2"})

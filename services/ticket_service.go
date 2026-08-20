@@ -127,42 +127,12 @@ func (s *ticketService) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, er
 	return tickets, nil
 }
 
-const validateUserTicketQuery = `query useEventScannerValidateUserTicketQuery(
-  $eventScannerId: ID!
-  $password: String!
-  $publicId: String!
+const createEventAttendanceMutation = `mutation useEventScannerCreateEventAttendanceMutation(
+  $input: EventScannerCreateEventAttendanceInput!
 ) {
-  eventScannerValidateUserTicket(eventScannerId: $eventScannerId, password: $password, publicId: $publicId) {
-    success
-    error {
-      code
-      message
-      ticketName
-      eventTitle
-      eventShortUrl
-    }
-    data {
-      publicId
-      orderUserEmail
-      orderUserFullName
-      ownerUserEmail
-      ownerUserFullName
-      ownerUserGender
-      ticket {
-        name
-        eventTitle
-        eventStartDate
-      }
-      attendance {
-        decodedId
-        attendedAt
-        scannerUserFullName
-        notes
-        attachmentUrl
-      }
-      maximumScan
-      currentScanCount
-    }
+  eventScannerCreateEventAttendance(input: $input) {
+    id
+    decodedId
   }
 }
 `
@@ -199,13 +169,20 @@ func (s *ticketService) scanDarisini(ticket models.Ticket) (string, string) {
 	if publicID == "" {
 		return "skipped", "Ticket code is empty"
 	}
+	if ticket.Event == nil || strings.TrimSpace(ticket.Event.EventScannerID) == "" {
+		return "skipped", "Event Scanner ID is empty"
+	}
 
 	payload, err := json.Marshal(map[string]interface{}{
-		"query": validateUserTicketQuery,
+		"query": createEventAttendanceMutation,
 		"variables": map[string]interface{}{
-			"eventScannerId": nil,
-			"password":       nil,
-			"publicId":       publicID,
+			"input": map[string]string{
+				"publicId":            publicID,
+				"eventScannerId":      strings.TrimSpace(ticket.Event.EventScannerID),
+				"identityMatch":       "Ticket matches identity",
+				"scannerUserFullName": "Go Ticketing Admin",
+				"notes":               "",
+			},
 		},
 	})
 	if err != nil {
@@ -243,10 +220,20 @@ func (s *ticketService) scanDarisini(ticket models.Ticket) (string, string) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "failed", response
 	}
-	if strings.Contains(string(body), `"success":true`) {
+	if hasGraphQLErrors(body) {
+		return "failed", response
+	}
+	if strings.Contains(string(body), `"eventScannerCreateEventAttendance"`) {
 		return "success", response
 	}
-	return "completed", response
+	return "failed", response
+}
+
+func hasGraphQLErrors(body []byte) bool {
+	var response struct {
+		Errors []json.RawMessage `json:"errors"`
+	}
+	return json.Unmarshal(body, &response) == nil && len(response.Errors) > 0
 }
 
 func (s *ticketService) getDarisiniCookie() (string, error) {

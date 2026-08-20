@@ -41,6 +41,9 @@ func (s *eventService) UpdateEvent(event *models.Event) error {
 	existingEvent.Location = event.Location
 	existingEvent.Description = event.Description
 	existingEvent.Status = event.Status
+	existingEvent.ImageURL = event.ImageURL
+	existingEvent.Color = event.Color
+	existingEvent.EventScannerID = event.EventScannerID
 	existingEvent.WarStartDate = event.WarStartDate
 	if !event.Date.IsZero() {
 		existingEvent.Date = event.Date
