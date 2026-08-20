@@ -32,10 +32,11 @@ func (c *TicketController) Create(ctx *fiber.Ctx) error {
 
 func (c *TicketController) GetAll(ctx *fiber.Ctx) error {
 	search := ctx.Query("search", "")
+	category := ctx.Query("category", "")
 	page, _ := strconv.Atoi(ctx.Query("page", "1"))
 	limit, _ := strconv.Atoi(ctx.Query("limit", "10"))
 	eventID := ctx.Query("event_id", "")
-	tickets, total, err := c.service.GetAll(search, page, limit, eventID)
+	tickets, total, err := c.service.GetAll(search, category, page, limit, eventID)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}

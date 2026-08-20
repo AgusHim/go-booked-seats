@@ -12,7 +12,7 @@ import (
 
 type TicketRepository interface {
 	Create(ticket *models.Ticket) error
-	FindAll(search string, page int, limit int, show_id string) ([]models.Ticket, int64, error)
+	FindAll(search string, category string, page int, limit int, show_id string) ([]models.Ticket, int64, error)
 	FindByID(id string) (*models.Ticket, error)
 	FindByTicketCode(ticketCode string) (*models.Ticket, error)
 	ToggleGoodieBag(id string) (*models.Ticket, error)
@@ -34,7 +34,7 @@ func (r *ticketRepository) Create(ticket *models.Ticket) error {
 	return r.db.Create(ticket).Error
 }
 
-func (r *ticketRepository) FindAll(search string, page int, limit int, eventID string) ([]models.Ticket, int64, error) {
+func (r *ticketRepository) FindAll(search string, category string, page int, limit int, eventID string) ([]models.Ticket, int64, error) {
 	var tickets []models.Ticket
 	var total int64
 
@@ -58,6 +58,10 @@ func (r *ticketRepository) FindAll(search string, page int, limit int, eventID s
 			"LOWER(ticket_code) LIKE ? OR LOWER(ext_ticket_id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(email) LIKE ?",
 			lowerKeyword, lowerKeyword, lowerKeyword, lowerKeyword,
 		)
+	}
+
+	if category != "" {
+		query = query.Where("category = ?", category)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
