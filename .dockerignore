@@ -19,3 +19,21 @@ bin/
 .DS_Store
 .idea/
 .vscode/
+
+# Local secrets and credentials must never enter the build context
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+scan-darisini.md
+
+# Local/generated artifacts
+uploads/
+exports/
+*.pdf
+*.xlsx
+*.xls
+response.json

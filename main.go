@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"go-ticketing/config"
+	middleware "go-ticketing/midleware"
 	"go-ticketing/models"
 	"go-ticketing/routes"
 	"go-ticketing/utils"
@@ -27,11 +28,12 @@ func main() {
 	app := fiber.New(fiber.Config{
 		BodyLimit: 5 * 1024 * 1024,
 	})
+	app.Use(middleware.RequestID())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins(),
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowCredentials: false,
+		AllowCredentials: true,
 	}))
 	db := config.ConnectDatabase()
 
@@ -81,7 +83,22 @@ func main() {
 		}
 	}()
 
-	if err := db.AutoMigrate(&models.Event{}, &models.Seat{}, &models.BookedSeat{}, &models.User{}, &models.Ticket{}, &models.Setting{}); err != nil {
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Community{},
+		&models.CommunityMember{},
+		&models.CommunityInvitation{},
+		&models.CommunityFollow{},
+		&models.AuthSession{},
+		&models.AuthToken{},
+		&models.UserEmailVerification{},
+		&models.EventCommunityAssignment{},
+		&models.Event{},
+		&models.Seat{},
+		&models.BookedSeat{},
+		&models.Ticket{},
+		&models.Setting{},
+	); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 

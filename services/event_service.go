@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"go-ticketing/models"
 	"go-ticketing/repositories"
 )
@@ -11,6 +12,38 @@ type EventService interface {
 	CreateEvent(event *models.Event) error
 	UpdateEvent(event *models.Event) error
 	DeleteEvent(id string) error
+	ListPublished(
+		ctx context.Context,
+		filter repositories.PublicEventFilter,
+	) ([]models.PublicEvent, int64, error)
+	FindPublished(ctx context.Context, idOrSlug string) (*models.PublicEvent, error)
+	ListPublishedForFollowed(
+		ctx context.Context,
+		userID string,
+		limit int,
+	) ([]models.PublicEvent, error)
+}
+
+func (s *eventService) ListPublished(
+	ctx context.Context,
+	filter repositories.PublicEventFilter,
+) ([]models.PublicEvent, int64, error) {
+	return s.repo.ListPublished(ctx, filter)
+}
+
+func (s *eventService) FindPublished(
+	ctx context.Context,
+	idOrSlug string,
+) (*models.PublicEvent, error) {
+	return s.repo.FindPublished(ctx, idOrSlug)
+}
+
+func (s *eventService) ListPublishedForFollowed(
+	ctx context.Context,
+	userID string,
+	limit int,
+) ([]models.PublicEvent, error) {
+	return s.repo.ListPublishedForFollowed(ctx, userID, limit)
 }
 
 type eventService struct {

@@ -1,0 +1,855 @@
+openapi: 3.1.0
+info:
+  title: Usloop API
+  version: 0.1.0
+  description: Initial v1 contract for identity and community foundation.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Create a user session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, data]
+                properties:
+                  token:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          description: Invalid credentials
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate the HttpOnly refresh session and issue a new access token
+      security:
+        - refreshCookie: []
+      responses:
+        "200":
+          description: Session rotated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke the current refresh session
+      security:
+        - refreshCookie: []
+      responses:
+        "204":
+          description: Session revoked
+  /api/v1/auth/sessions:
+    get:
+      tags: [Auth]
+      summary: List active refresh sessions for the current account
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active sessions
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/auth/sessions/{session_id}:
+    delete:
+      tags: [Auth]
+      summary: Revoke one refresh session owned by the current account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Session revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/auth/email-verification/request:
+    post:
+      tags: [Auth]
+      summary: Request a single-use email-verification token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailRequest"
+      responses:
+        "202":
+          description: Request accepted
+  /api/v1/auth/email-verification/verify:
+    post:
+      tags: [Auth]
+      summary: Verify an email with a single-use token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Email verified
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/auth/password-reset/request:
+    post:
+      tags: [Auth]
+      summary: Request password-reset instructions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailRequest"
+      responses:
+        "202":
+          description: Request accepted
+  /api/v1/auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Set a new password and revoke all refresh sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "200":
+          description: Password updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/events:
+    get:
+      tags: [Events]
+      summary: Search published events assigned to active communities
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: community
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: Published event page
+  /api/v1/events/{id_or_slug}:
+    get:
+      tags: [Events]
+      summary: Get one published event by UUID or slug
+      parameters:
+        - name: id_or_slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published event
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/communities/{slug}/events:
+    get:
+      tags: [Events, Communities]
+      summary: List published events for an active community
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Community events
+  /api/v1/me/events:
+    get:
+      tags: [Events]
+      summary: List events from communities followed by the current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Personalized event list
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/communities:
+    get:
+      tags: [Communities]
+      summary: List active public communities for discovery and prerender
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: Active community page ordered by slug
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Community"
+                  meta:
+                    allOf:
+                      - $ref: "#/components/schemas/Meta"
+                      - $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    post:
+      tags: [Communities]
+      summary: Create a community and owner membership
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommunityRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/me:
+    get:
+      tags: [Auth]
+      summary: Get the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/communities/{slug}:
+    get:
+      tags: [Communities]
+      summary: Get a public community profile
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Community
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityEnvelope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/me/communities:
+    get:
+      tags: [Communities]
+      summary: List communities where the current user is an active team member
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Communities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Community"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/me/following:
+    get:
+      tags: [Communities]
+      summary: List active communities followed by the current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Followed communities
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/communities/{community_id}/follow:
+    get:
+      tags: [Communities]
+      summary: Get the current user's follow state
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      responses:
+        "200":
+          description: Follow state
+    post:
+      tags: [Communities]
+      summary: Follow an active community
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      responses:
+        "200":
+          description: Community followed
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Communities]
+      summary: Unfollow a community
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      responses:
+        "200":
+          description: Community unfollowed
+  /api/v1/portal/{community_id}/members:
+    get:
+      tags: [Community Portal]
+      summary: List active community team members
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CommunityMember"
+                  meta:
+                    $ref: "#/components/schemas/Meta"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/portal/{community_id}/:
+    get:
+      tags: [Community Portal]
+      summary: Get tenant profile and the current user's community role
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      responses:
+        "200":
+          description: Portal community context
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Community Portal]
+      summary: Update public community profile fields
+      description: Slug, template type, ownership, and financial settings are immutable here.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityProfileInput"
+      responses:
+        "200":
+          description: Community profile updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/portal/{community_id}/members/{member_id}:
+    patch:
+      tags: [Community Portal]
+      summary: Change a non-owner team member role
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  $ref: "#/components/schemas/CommunityRole"
+      responses:
+        "200":
+          description: Role updated
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      tags: [Community Portal]
+      summary: Remove a non-owner member from the team
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+        - name: member_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Member removed
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/portal/{community_id}/invitations:
+    post:
+      tags: [Community Portal]
+      summary: Invite a community team member
+      description: The token is returned once until notification delivery is implemented.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CommunityID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvitationRequest"
+      responses:
+        "201":
+          description: Invitation
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/community-invitations/{token}/accept:
+    post:
+      tags: [Community Portal]
+      summary: Accept a single-use invitation for the authenticated email
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 32
+      responses:
+        "200":
+          description: Membership created
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Expired, accepted, unavailable, or already a member
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: usloop_refresh
+  parameters:
+    CommunityID:
+      name: community_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    EmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    TokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 32
+    PasswordResetRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+          minLength: 32
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    User:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+    CreateCommunityRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: "#/components/schemas/CommunityType"
+        logo_url:
+          type: string
+          format: uri
+        cover_url:
+          type: string
+          format: uri
+        location:
+          type: string
+    Community:
+      type: object
+      required: [id, slug, name, type, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: "#/components/schemas/CommunityType"
+        status:
+          type: string
+          enum: [active, inactive]
+        logo_url:
+          type: string
+        cover_url:
+          type: string
+        location:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        follower_count:
+          type: integer
+          minimum: 0
+          readOnly: true
+    CommunityType:
+      type: string
+      enum: [general, dakwah, running]
+    CommunityProfileInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 160
+        description:
+          type: string
+          maxLength: 5000
+        location:
+          type: string
+          maxLength: 255
+        logo_url:
+          type: string
+          format: uri
+        cover_url:
+          type: string
+          format: uri
+    PublicEventCommunity:
+      type: object
+      required: [id, slug, name, type]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/CommunityType"
+        logo_url:
+          type: string
+    PublicEvent:
+      type: object
+      required: [id, slug, name, date, location, description, status, updated_at, community]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        date:
+          type: string
+          format: date-time
+        location:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [published]
+        image_url:
+          type: string
+        color:
+          type: string
+        war_start_date:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        community:
+          $ref: "#/components/schemas/PublicEventCommunity"
+    CommunityRole:
+      type: string
+      enum: [owner, admin, event_manager, checkin_staff, moderator, mentor]
+    CommunityMember:
+      type: object
+      required: [id, community_id, user_id, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        community_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/CommunityRole"
+        status:
+          type: string
+          enum: [active, invited, removed]
+        user:
+          $ref: "#/components/schemas/User"
+    CreateInvitationRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/CommunityRole"
+    CommunityEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Community"
+        meta:
+          $ref: "#/components/schemas/Meta"
+    ErrorEnvelope:
+      type: object
+      required: [error, meta]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            fields:
+              type: object
+              additionalProperties: true
+        meta:
+          $ref: "#/components/schemas/Meta"
+    Meta:
+      type: object
+      required: [request_id]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+    PaginationMeta:
+      type: object
+      required: [page, limit, total]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0

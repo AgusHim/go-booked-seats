@@ -4,6 +4,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - DATABASE_URL=${DATABASE_URL}
       - POSTGRE_URL=${POSTGRE_URL}
       - REDIS_URL=${REDIS_URL:-redis:6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}

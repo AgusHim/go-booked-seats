@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"go-ticketing/authorization"
 	"strconv"
 	"sync"
 	"time"
@@ -21,7 +22,8 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	ws := controllers.NewWebsocketController()
 
 	userRepo := repositories.NewUserRepository(db)
-	userService := services.NewUserService(userRepo)
+	authRepo := repositories.NewAuthRepository(db)
+	userService := services.NewUserService(userRepo, authRepo)
 	userController := controllers.NewUserController(userService)
 
 	bookedSeatRepo := repositories.NewBookedSeatRepository(db, rdb)
@@ -47,6 +49,10 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	eventService := services.NewEventService(eventRepo)
 	eventController := controllers.NewEventController(eventService)
 
+	communityRepo := repositories.NewCommunityRepository(db)
+	communityService := services.NewCommunityService(communityRepo, userRepo)
+	communityController := controllers.NewCommunityController(communityService)
+
 	// Middleware: WebSocket Upgrade
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
@@ -70,6 +76,66 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	api.Post("/login", loginLimiter, userController.Login)
 	api.Get("/events", eventController.GetEvents)
 	api.Get("/events/:id", eventController.GetEvent)
+
+	v1 := app.Group("/api/v1")
+	v1.Post("/auth/register", loginLimiter, userController.Register)
+	v1.Post("/auth/login", loginLimiter, userController.Login)
+	v1.Post("/auth/refresh", loginLimiter, userController.Refresh)
+	v1.Post("/auth/logout", userController.Logout)
+	v1.Post("/auth/email-verification/request", loginLimiter, userController.RequestEmailVerification)
+	v1.Post("/auth/email-verification/verify", loginLimiter, userController.VerifyEmail)
+	v1.Post("/auth/password-reset/request", loginLimiter, userController.RequestPasswordReset)
+	v1.Post("/auth/password-reset/confirm", loginLimiter, userController.ResetPassword)
+	v1.Get("/events", eventController.ListPublic)
+	v1.Get("/events/:id_or_slug", eventController.GetPublic)
+	v1.Get("/communities", communityController.ListPublic)
+	v1.Get("/communities/:slug/events", eventController.ListCommunityPublic)
+	v1.Get("/communities/:slug", communityController.GetPublic)
+
+	v1User := v1.Group("", middleware.AuthProtected(db))
+	v1User.Get("/me", userController.Me)
+	v1User.Get("/auth/sessions", userController.ListSessions)
+	v1User.Delete("/auth/sessions/:session_id", userController.RevokeSession)
+	v1User.Post("/communities", communityController.Create)
+	v1User.Get("/me/communities", communityController.ListMine)
+	v1User.Get("/me/following", communityController.ListFollowing)
+	v1User.Get("/me/events", eventController.ListFollowingFeed)
+	v1User.Get("/communities/:community_id/follow", communityController.FollowState)
+	v1User.Post("/communities/:community_id/follow", communityController.Follow)
+	v1User.Delete("/communities/:community_id/follow", communityController.Unfollow)
+	v1User.Post("/community-invitations/:token/accept", communityController.AcceptInvitation)
+
+	portal := v1User.Group("/portal/:community_id")
+	portal.Get(
+		"/",
+		middleware.CommunityPermission(db, authorization.PermissionCommunityRead),
+		communityController.GetPortal,
+	)
+	portal.Put(
+		"/",
+		middleware.CommunityPermission(db, authorization.PermissionCommunityManage),
+		communityController.UpdateProfile,
+	)
+	portal.Get(
+		"/members",
+		middleware.CommunityPermission(db, authorization.PermissionMemberRead),
+		communityController.ListMembers,
+	)
+	portal.Post(
+		"/invitations",
+		middleware.CommunityPermission(db, authorization.PermissionMemberManage),
+		communityController.Invite,
+	)
+	portal.Patch(
+		"/members/:member_id",
+		middleware.CommunityPermission(db, authorization.PermissionMemberManage),
+		communityController.UpdateMemberRole,
+	)
+	portal.Delete(
+		"/members/:member_id",
+		middleware.CommunityPermission(db, authorization.PermissionMemberManage),
+		communityController.RemoveMember,
+	)
 
 	admin_api.Get("/users", userController.FindAll)
 	admin_api.Post("/users", userController.Create)

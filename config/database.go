@@ -11,7 +11,11 @@ import (
 )
 
 func ConnectDatabase() *gorm.DB {
-	postgresURL := os.Getenv("POSTGRE_URL")
+	postgresURL := os.Getenv("DATABASE_URL")
+	if postgresURL == "" {
+		// POSTGRE_URL is retained temporarily for backward compatibility.
+		postgresURL = os.Getenv("POSTGRE_URL")
+	}
 	if postgresURL != "" {
 		// Connect to PostgreSQL
 		DB, err := gorm.Open(postgres.Open(postgresURL), &gorm.Config{})

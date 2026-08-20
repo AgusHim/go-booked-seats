@@ -44,14 +44,28 @@ func MustJWTSecret() []byte {
 	return secret
 }
 
-func GenerateJWT(userID string) (string, error) {
+func GenerateAccessJWT(
+	userID string,
+	sessionID string,
+	now time.Time,
+	ttl time.Duration,
+) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
-		"type":    "admin",
-		"exp":     time.Now().Add(72 * time.Hour).Unix(),
+		"sid":     sessionID,
+		"type":    "user_session",
+		"iat":     now.Unix(),
+		"exp":     now.Add(ttl).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(MustJWTSecret())
+}
+
+// GenerateJWT remains for older callers while issuing the same short-lived
+// user-session token. New authentication flows use GenerateAccessJWT so the
+// access token can be correlated with its refresh session.
+func GenerateJWT(userID string) (string, error) {
+	return GenerateAccessJWT(userID, "", time.Now().UTC(), 15*time.Minute)
 }
 
 // GenerateTicketJWT creates a JWT token for verified ticket holders (war kursi session)

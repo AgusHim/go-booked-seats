@@ -37,4 +37,21 @@ Thumbs.db
 *.swp
 
 data.db
+
+# Local environment and credentials
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+scan-darisini.md
+response.json
+
+# Uploaded/generated participant artifacts
+uploads/
+exports/
+*.pdf
+*.xlsx
+*.xls
