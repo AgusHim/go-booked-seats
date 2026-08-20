@@ -50,7 +50,11 @@ func (s *eventService) UpdateEvent(event *models.Event) error {
 		existingEvent.Date = event.Date
 	}
 
-	return s.repo.UpdateEvent(existingEvent)
+	if err := s.repo.UpdateEvent(existingEvent); err != nil {
+		return err
+	}
+	*event = *existingEvent
+	return nil
 }
 
 func (s *eventService) CreateEvent(event *models.Event) error {
