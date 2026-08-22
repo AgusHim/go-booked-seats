@@ -73,9 +73,48 @@ func (r *DashboardRepository) GetDashboardData() (*models.DashboardSummary, erro
 		ticketSummary[row.ShowID][row.TicketName] = row.Count
 	}
 
+	// --- Query Goodie Bag Summary ---
+	type RawGoodieBagData struct {
+		Category  string
+		Total     int
+		Claimed   int
+		Unclaimed int
+	}
+
+	var rawGoodieBagData []RawGoodieBagData
+
+	err = r.DB.Table("tickets").
+		Select("category, COUNT(*) as total, "+
+			"SUM(CASE WHEN goodie_bag_claimed THEN 1 ELSE 0 END) as claimed, "+
+			"SUM(CASE WHEN NOT goodie_bag_claimed THEN 1 ELSE 0 END) as unclaimed").
+		Group("category").
+		Scan(&rawGoodieBagData).Error
+	if err != nil {
+		return nil, err
+	}
+
+	goodieBag := models.GoodieBagSummary{
+		ByCategory: make(map[string]models.GoodieBagGroupSummary),
+	}
+	for _, row := range rawGoodieBagData {
+		category := row.Category
+		if category == "" {
+			category = "Uncategorized"
+		}
+		goodieBag.ByCategory[category] = models.GoodieBagGroupSummary{
+			Total:     row.Total,
+			Claimed:   row.Claimed,
+			Unclaimed: row.Unclaimed,
+		}
+		goodieBag.Total += row.Total
+		goodieBag.Claimed += row.Claimed
+		goodieBag.Unclaimed += row.Unclaimed
+	}
+
 	// --- Return all summary ---
 	return &models.DashboardSummary{
 		BookedSeats:   bookedSeats,
 		TicketSummary: ticketSummary,
+		GoodieBag:     goodieBag,
 	}, nil
 }

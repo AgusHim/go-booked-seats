@@ -94,6 +94,7 @@ func RegisterRoutes(app *fiber.App, db *gorm.DB, rdb *redis.Client) {
 	admin_api.Delete("/tickets/:id", ticketController.Delete)
 	admin_api.Post("/tickets/goodie-bags/claim", ticketController.MarkGoodieBagsClaimed)
 	admin_api.Post("/tickets/:id/goodie-bag", ticketController.ToggleGoodieBag)
+	admin_api.Get("/tickets/:id/check-darisini", ticketController.CheckDarisini)
 	admin_api.Post("/seats/layout", seatController.SaveBulkLayout)
 	admin_api.Get("/settings/darisini", settingController.GetDarisini)
 	admin_api.Put("/settings/darisini", settingController.UpdateDarisini)

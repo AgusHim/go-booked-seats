@@ -28,6 +28,7 @@ type TicketService interface {
 	VerifyTicketCode(ticketCode string) (*models.Ticket, error)
 	ToggleGoodieBag(id string) (*models.Ticket, error)
 	MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, error)
+	CheckDarisini(id string) (*models.DarisiniTicketCheck, error)
 }
 
 type ticketService struct {
@@ -125,6 +126,140 @@ func (s *ticketService) MarkGoodieBagsClaimed(ids []string) ([]models.Ticket, er
 		s.scanDarisiniAsync(ticket)
 	}
 	return tickets, nil
+}
+
+// validateTicketQuery is the Darisini GraphQL query used to check whether a
+// ticket (by publicId) has already been scanned. eventScannerId and password
+// are sent as null because authentication is handled via the stored cookie.
+const validateTicketQuery = `query useEventScannerValidateUserTicketQuery(
+  $eventScannerId: ID
+  $password: String
+  $publicId: String!
+) {
+  eventScannerValidateUserTicket(eventScannerId: $eventScannerId, password: $password, publicId: $publicId) {
+    success
+    error {
+      code
+      message
+      ticketName
+      eventTitle
+      eventShortUrl
+    }
+    data {
+      publicId
+      orderUserEmail
+      orderUserFullName
+      ownerUserEmail
+      ownerUserFullName
+      ownerUserGender
+      ticket {
+        name
+        eventTitle
+        eventStartDate
+      }
+      attendance {
+        decodedId
+        attendedAt
+        scannerUserFullName
+        notes
+        attachmentUrl
+      }
+      maximumScan
+      currentScanCount
+    }
+  }
+}
+`
+
+// CheckDarisini looks up a ticket by ID and returns its Darisini validation
+// status, including any prior scan (attendance) records.
+func (s *ticketService) CheckDarisini(id string) (*models.DarisiniTicketCheck, error) {
+	if s.settingRepo == nil {
+		return nil, fmt.Errorf("darisini settings not configured")
+	}
+	ticket, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return s.validateDarisini(*ticket)
+}
+
+// validateDarisini calls the Darisini validate GraphQL query for the given
+// ticket using the stored Darisini cookie.
+func (s *ticketService) validateDarisini(ticket models.Ticket) (*models.DarisiniTicketCheck, error) {
+	cookie, err := s.getDarisiniCookie()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(cookie) == "" {
+		return nil, fmt.Errorf("darisini cookie is empty")
+	}
+
+	publicID := strings.TrimSpace(ticket.TicketCode)
+	if publicID == "" {
+		publicID = strings.TrimSpace(ticket.ExtTicketID)
+	}
+	if publicID == "" {
+		return nil, fmt.Errorf("ticket code is empty")
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"query": validateTicketQuery,
+		"variables": map[string]interface{}{
+			"eventScannerId": nil,
+			"password":        nil,
+			"publicId":        publicID,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", "https://scanner.darisini.com/api/graphql", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("sec-ch-ua-platform", `"Android"`)
+	req.Header.Set("origin", "https://scanner.darisini.com")
+	req.Header.Set("Referer", "https://scanner.darisini.com/v2/presence")
+	req.Header.Set("sec-ch-ua", `"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"`)
+	req.Header.Set("Cookie", cookie)
+	req.Header.Set("sec-ch-ua-mobile", "?1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36")
+	req.Header.Set("Accept", "application/graphql-response+json; charset=utf-8, application/json; charset=utf-8")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("darisini request failed: HTTP %s", resp.Status)
+	}
+
+	var parsed struct {
+		Data struct {
+			EventScannerValidateUserTicket models.DarisiniTicketCheck `json:"eventScannerValidateUserTicket"`
+		} `json:"data"`
+		Errors []json.RawMessage `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to parse darisini response: %s", string(body))
+	}
+	if len(parsed.Errors) > 0 {
+		return nil, fmt.Errorf("darisini graphql error: %s", string(body))
+	}
+
+	return &parsed.Data.EventScannerValidateUserTicket, nil
 }
 
 const createEventAttendanceMutation = `mutation useEventScannerCreateEventAttendanceMutation(

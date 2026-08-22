@@ -142,3 +142,14 @@ func (c *TicketController) MarkGoodieBagsClaimed(ctx *fiber.Ctx) error {
 	}
 	return ctx.JSON(fiber.Map{"success": true, "data": tickets, "message": "Goodie bags marked as claimed"})
 }
+
+// CheckDarisini validates a ticket against the Darisini scanner and returns
+// whether it has already been scanned, including when and by whom.
+func (c *TicketController) CheckDarisini(ctx *fiber.Ctx) error {
+	id := ctx.Params("id")
+	result, err := c.service.CheckDarisini(id)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{"success": true, "data": result, "message": "Success check ticket"})
+}
