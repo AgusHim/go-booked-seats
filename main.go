@@ -85,6 +85,15 @@ func main() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// Drop the deprecated `event_scanner_user_full_name` column. Scanner name
+	// is now derived from the logged-in account performing the claim, not from
+	// a per-event field. Idempotent: only runs while the column still exists.
+	if db.Migrator().HasColumn(&models.Event{}, "event_scanner_user_full_name") {
+		if err := db.Migrator().DropColumn(&models.Event{}, "event_scanner_user_full_name"); err != nil {
+			log.Printf("failed to drop event_scanner_user_full_name column: %v", err)
+		}
+	}
+
 	routes.RegisterRoutes(app, db, rdb)
 
 	log.Fatal(app.Listen(":3000"))

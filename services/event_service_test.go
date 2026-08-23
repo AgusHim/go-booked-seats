@@ -24,13 +24,12 @@ func TestEventService_CreateAndUpdateScanner(t *testing.T) {
 	svc := NewEventService(repo)
 
 	event := &models.Event{
-		ID:                       "event-test-1",
-		Name:                     "Workshop React",
-		Location:                 "Auditorium",
-		Status:                   "active",
-		Date:                     time.Now(),
-		EventScannerID:           "cmt12rzyl013js601r4p5kwj5",
-		EventScannerUserFullName: "Rijal",
+		ID:             "event-test-1",
+		Name:           "Workshop React",
+		Location:       "Auditorium",
+		Status:         "active",
+		Date:           time.Now(),
+		EventScannerID: "cmt12rzyl013js601r4p5kwj5",
 	}
 
 	if err := svc.CreateEvent(event); err != nil {
@@ -41,25 +40,24 @@ func TestEventService_CreateAndUpdateScanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get event: %v", err)
 	}
-	if fetched.EventScannerID != "cmt12rzyl013js601r4p5kwj5" || fetched.EventScannerUserFullName != "Rijal" {
-		t.Fatalf("unexpected fetched scanner info: %s, %s", fetched.EventScannerID, fetched.EventScannerUserFullName)
+	if fetched.EventScannerID != "cmt12rzyl013js601r4p5kwj5" {
+		t.Fatalf("unexpected fetched scanner ID: %s", fetched.EventScannerID)
 	}
 
 	// Update scanner info
 	updateInput := &models.Event{
-		ID:                       event.ID,
-		Name:                     "Workshop React Updated",
-		Location:                 "Auditorium 2",
-		Status:                   "active",
-		EventScannerID:           "scanner-new-id-999",
-		EventScannerUserFullName: "Nadia Farhana",
+		ID:             event.ID,
+		Name:           "Workshop React Updated",
+		Location:       "Auditorium 2",
+		Status:         "active",
+		EventScannerID: "scanner-new-id-999",
 	}
 
 	if err := svc.UpdateEvent(updateInput); err != nil {
 		t.Fatalf("failed to update event: %v", err)
 	}
 
-	if updateInput.EventScannerID != "scanner-new-id-999" || updateInput.EventScannerUserFullName != "Nadia Farhana" {
+	if updateInput.EventScannerID != "scanner-new-id-999" {
 		t.Fatalf("updateInput was not updated: %+v", updateInput)
 	}
 
@@ -67,7 +65,7 @@ func TestEventService_CreateAndUpdateScanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get persisted event: %v", err)
 	}
-	if persisted.EventScannerID != "scanner-new-id-999" || persisted.EventScannerUserFullName != "Nadia Farhana" {
-		t.Fatalf("unexpected persisted scanner info: %s, %s", persisted.EventScannerID, persisted.EventScannerUserFullName)
+	if persisted.EventScannerID != "scanner-new-id-999" {
+		t.Fatalf("unexpected persisted scanner ID: %s", persisted.EventScannerID)
 	}
 }

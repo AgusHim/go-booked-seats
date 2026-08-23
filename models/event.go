@@ -20,7 +20,6 @@ type Event struct {
 	ImageURL                 string     `json:"image_url" gorm:"type:text"`
 	Color                    string     `json:"color"`
 	EventScannerID           string     `json:"event_scanner_id" gorm:"type:text"`
-	EventScannerUserFullName string     `json:"event_scanner_user_full_name" gorm:"type:text"`
 	Seats                    []Seat     `json:"seats,omitempty" gorm:"foreignKey:EventID"`
 	Tickets                  []Ticket   `json:"tickets,omitempty" gorm:"foreignKey:EventID"`
 	WarStartDate             *time.Time `json:"war_start_date"`

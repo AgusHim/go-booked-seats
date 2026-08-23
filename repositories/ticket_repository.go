@@ -2,10 +2,12 @@
 package repositories
 
 import (
+	"errors"
 	"go-ticketing/models"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -20,6 +22,7 @@ type TicketRepository interface {
 	UpdateDarisiniScanLog(id string, status string, response string, scannedAt time.Time) error
 	Update(ticket *models.Ticket) error
 	Delete(id string) error
+	UpsertParticipants(tickets []models.Ticket, eventID string) (int, int, int, error)
 }
 
 type ticketRepository struct {
@@ -166,4 +169,64 @@ func (r *ticketRepository) Update(ticket *models.Ticket) error {
 
 func (r *ticketRepository) Delete(id string) error {
 	return r.db.Delete(&models.Ticket{}, "id = ?", id).Error
+}
+
+// UpsertParticipants imports or updates tickets by ticket_code within a single
+// transaction. New tickets are created with the given eventID; existing tickets
+// are updated with the latest participant data. Returns imported, updated, and
+// skipped counts (skipped covers rows with an empty ticket code or DB errors).
+func (r *ticketRepository) UpsertParticipants(tickets []models.Ticket, eventID string) (int, int, int, error) {
+	imported, updated, skipped := 0, 0, 0
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		for _, t := range tickets {
+			code := strings.TrimSpace(t.TicketCode)
+			if code == "" {
+				skipped++
+				continue
+			}
+
+			var existing models.Ticket
+			res := tx.Where("ticket_code = ?", code).First(&existing)
+			if res.Error != nil {
+				if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+					skipped++
+					continue
+				}
+
+				// Create new ticket.
+				t.ID = uuid.New().String()
+				t.TicketCode = code
+				t.ExtTicketID = code
+				t.EventID = eventID
+				if err := tx.Create(&t).Error; err != nil {
+					skipped++
+					continue
+				}
+				imported++
+			} else {
+				// Update existing ticket with the latest participant data.
+				// Preserve goodie bag, darisini scan, event, and seat state.
+				if err := tx.Model(&existing).Updates(map[string]interface{}{
+					"name":         t.Name,
+					"email":        t.Email,
+					"phone":        t.Phone,
+					"gender":       t.Gender,
+					"ticket_name":  t.TicketName,
+					"category":     t.Category,
+					"age":          t.Age,
+					"city":         t.City,
+					"province":     t.Province,
+					"ext_ticket_id": code,
+				}).Error; err != nil {
+					skipped++
+					continue
+				}
+				updated++
+			}
+		}
+		return nil
+	})
+
+	return imported, updated, skipped, err
 }

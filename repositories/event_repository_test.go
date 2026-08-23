@@ -19,17 +19,15 @@ func TestEventScannerSettingsArePersisted(t *testing.T) {
 
 	repo := NewEventRepository(db)
 	event := &models.Event{
-		ID:                       "event-1",
-		Name:                     "Scanner Event",
-		EventScannerID:           "scanner-123",
-		EventScannerUserFullName: "Rijal",
+		ID:             "event-1",
+		Name:           "Scanner Event",
+		EventScannerID: "scanner-123",
 	}
 	if err := repo.CreateEvent(event); err != nil {
 		t.Fatalf("failed to create event: %v", err)
 	}
 
 	event.EventScannerID = "scanner-456"
-	event.EventScannerUserFullName = "Nadia"
 	if err := repo.UpdateEvent(event); err != nil {
 		t.Fatalf("failed to update event: %v", err)
 	}
@@ -40,8 +38,5 @@ func TestEventScannerSettingsArePersisted(t *testing.T) {
 	}
 	if persisted.EventScannerID != "scanner-456" {
 		t.Fatalf("expected scanner ID to persist, got %q", persisted.EventScannerID)
-	}
-	if persisted.EventScannerUserFullName != "Nadia" {
-		t.Fatalf("expected scanner user full name to persist, got %q", persisted.EventScannerUserFullName)
 	}
 }

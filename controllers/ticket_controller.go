@@ -3,6 +3,7 @@ package controllers
 
 import (
 	"go-ticketing/models"
+	"go-ticketing/repositories"
 	"go-ticketing/services"
 	"strconv"
 
@@ -10,11 +11,12 @@ import (
 )
 
 type TicketController struct {
-	service services.TicketService
+	service  services.TicketService
+	userRepo repositories.UserRepository
 }
 
-func NewTicketController(service services.TicketService) *TicketController {
-	return &TicketController{service}
+func NewTicketController(service services.TicketService, userRepo repositories.UserRepository) *TicketController {
+	return &TicketController{service: service, userRepo: userRepo}
 }
 
 func (c *TicketController) Create(ctx *fiber.Ctx) error {
@@ -116,9 +118,30 @@ func (c *TicketController) ImportCSV(ctx *fiber.Ctx) error {
 	})
 }
 
+// scannerUserFullName resolves the name of the currently logged-in account
+// (the operator/crew performing the action) from the request context. The
+// AdminProtected middleware populates c.Locals("user_id"). Returns an empty
+// string only if the user cannot be resolved, in which case the caller should
+// surface an error.
+func (c *TicketController) scannerUserFullName(ctx *fiber.Ctx) (string, error) {
+	userID, ok := ctx.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return "", fiber.NewError(fiber.StatusUnauthorized, "User not authenticated")
+	}
+	user, err := c.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		return "", fiber.NewError(fiber.StatusUnauthorized, "Logged-in user not found")
+	}
+	return user.Name, nil
+}
+
 func (c *TicketController) ToggleGoodieBag(ctx *fiber.Ctx) error {
 	id := ctx.Params("id")
-	ticket, err := c.service.ToggleGoodieBag(id)
+	scannerName, err := c.scannerUserFullName(ctx)
+	if err != nil {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	ticket, err := c.service.ToggleGoodieBag(id, scannerName)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
@@ -136,7 +159,11 @@ func (c *TicketController) MarkGoodieBagsClaimed(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Ticket ids are required"})
 	}
 
-	tickets, err := c.service.MarkGoodieBagsClaimed(body.IDs)
+	scannerName, err := c.scannerUserFullName(ctx)
+	if err != nil {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	tickets, err := c.service.MarkGoodieBagsClaimed(body.IDs, scannerName)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
@@ -152,4 +179,34 @@ func (c *TicketController) CheckDarisini(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
 	}
 	return ctx.JSON(fiber.Map{"success": true, "data": result, "message": "Success check ticket"})
+}
+
+// SyncDarisini pulls all participants for an event scanner from Darisini and
+// upserts them as tickets for the given local event.
+func (c *TicketController) SyncDarisini(ctx *fiber.Ctx) error {
+	var body struct {
+		EventID        string `json:"event_id"`
+		EventScannerID string `json:"event_scanner_id"`
+	}
+	if err := ctx.BodyParser(&body); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	if body.EventID == "" {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "event_id is required"})
+	}
+	if body.EventScannerID == "" {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "event_scanner_id is required"})
+	}
+
+	imported, updated, skipped, err := c.service.SyncDarisiniParticipants(body.EventID, body.EventScannerID)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": err.Error()})
+	}
+	return ctx.JSON(fiber.Map{
+		"success":        true,
+		"message":        "Sync completed",
+		"imported_count": imported,
+		"updated_count":  updated,
+		"skipped_count":  skipped,
+	})
 }
