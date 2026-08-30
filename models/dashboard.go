@@ -2,7 +2,7 @@ package models
 
 type DashboardSummary struct {
 	BookedSeats   map[string]map[string]SeatCategorySummary `json:"booked_seats"`
-	TicketSummary map[string]map[string]int                 `json:"ticket_summary"`
+	TicketSummary map[string]int                        `json:"ticket_summary"`
 	GoodieBag     GoodieBagSummary                          `json:"goodie_bag"`
 }
 

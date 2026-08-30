@@ -50,27 +50,27 @@ func (r *DashboardRepository) GetDashboardData() (*models.DashboardSummary, erro
 
 	// --- Query Ticket Summary ---
 	type RawTicketData struct {
-		ShowID     string
-		TicketName string
-		Count      int
+		Category string
+		Count    int
 	}
 
 	var rawTicketData []RawTicketData
 
 	err = r.DB.Table("tickets").
-		Select("show_id, ticket_name, COUNT(*) as count").
-		Group("show_id, ticket_name").
+		Select("LOWER(category) as category, COUNT(*) as count").
+		Group("LOWER(category)").
 		Scan(&rawTicketData).Error
 	if err != nil {
 		return nil, err
 	}
 
-	ticketSummary := make(map[string]map[string]int)
+	ticketSummary := make(map[string]int)
 	for _, row := range rawTicketData {
-		if _, ok := ticketSummary[row.ShowID]; !ok {
-			ticketSummary[row.ShowID] = make(map[string]int)
+		category := row.Category
+		if category == "" {
+			category = "uncategorized"
 		}
-		ticketSummary[row.ShowID][row.TicketName] = row.Count
+		ticketSummary[category] = row.Count
 	}
 
 	// --- Query Goodie Bag Summary ---
